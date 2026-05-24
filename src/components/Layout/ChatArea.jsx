@@ -21,9 +21,9 @@ export default function ChatArea({ server, channelId }) {
     return (
       <div className="chat-area">
         <div className="empty-state">
-          <div className="empty-icon">💬</div>
+          <div className="empty-icon">🦕</div>
           <h2>No channel selected</h2>
-          <p>Pick a channel from the sidebar to start chatting.</p>
+          <p>Pick a channel from the sidebar and let the dinos roam! 🦖</p>
         </div>
       </div>
     )

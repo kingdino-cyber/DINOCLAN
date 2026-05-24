@@ -4,6 +4,7 @@ import { db } from '../../firebase'
 import ServerSidebar from './ServerSidebar'
 import ChannelSidebar from './ChannelSidebar'
 import ChatArea from './ChatArea'
+import DinoDecorations from '../DinoDecorations'
 
 export default function MainLayout() {
   const [activeServerId, setActiveServerId] = useState(null)
@@ -26,6 +27,7 @@ export default function MainLayout() {
 
   return (
     <div className="app-layout">
+      <DinoDecorations />
       <ServerSidebar
         activeServerId={activeServerId}
         onSelectServer={handleSelectServer}

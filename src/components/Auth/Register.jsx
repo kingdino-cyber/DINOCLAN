@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import DinoDecorations from '../DinoDecorations'
 
 export default function Register() {
   const { register } = useAuth()
@@ -30,9 +31,10 @@ export default function Register() {
 
   return (
     <div className="auth-page">
+      <DinoDecorations />
       <div className="auth-box">
-        <h1>Create an account</h1>
-        <p className="auth-subtitle">Join the conversation today!</p>
+        <h1>🦖 Join the Herd!</h1>
+        <p className="auth-subtitle">Create your dino account today! 🦕</p>
         <form onSubmit={handleSubmit}>
           <label>Display Name</label>
           <input

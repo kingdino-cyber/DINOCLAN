@@ -39,9 +39,9 @@ export default function MessageList({ serverId, channelId, channelName }) {
     return (
       <div className="messages-list" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', flex: 1 }}>
         <div className="welcome-banner">
-          <div className="welcome-icon">#</div>
+          <div className="welcome-icon">🦕</div>
           <h2>Welcome to #{channelName}!</h2>
-          <p>This is the start of the #{channelName} channel. Say hello!</p>
+          <p>This is the start of #{channelName}. The dinos are ready to chat! 🦖</p>
         </div>
         <div ref={bottomRef} />
       </div>
@@ -51,9 +51,9 @@ export default function MessageList({ serverId, channelId, channelName }) {
   return (
     <div className="messages-list">
       <div className="welcome-banner">
-        <div className="welcome-icon">#</div>
+        <div className="welcome-icon">🦕</div>
         <h2>Welcome to #{channelName}!</h2>
-        <p>This is the start of the #{channelName} channel.</p>
+        <p>The start of #{channelName} — where dinos gather! 🦖</p>
       </div>
       {messages.map((msg, i) => (
         <Message

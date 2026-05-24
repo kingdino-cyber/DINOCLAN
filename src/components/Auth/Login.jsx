@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import DinoDecorations from '../DinoDecorations'
 
 export default function Login() {
   const { login } = useAuth()
@@ -24,9 +25,10 @@ export default function Login() {
 
   return (
     <div className="auth-page">
+      <DinoDecorations />
       <div className="auth-box">
-        <h1>Welcome back!</h1>
-        <p className="auth-subtitle">We're so excited to see you again!</p>
+        <h1>🦕 Welcome back!</h1>
+        <p className="auth-subtitle">The dinos missed you! 🦖</p>
         <form onSubmit={handleSubmit}>
           <label>Email</label>
           <input

@@ -43,7 +43,7 @@ export default function ServerSidebar({ activeServerId, onSelectServer }) {
         onClick={() => onSelectServer(null)}
         data-tooltip="Home"
       >
-        🏠
+        🦕
       </div>
 
       <div className="server-divider" />
