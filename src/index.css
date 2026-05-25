@@ -362,6 +362,20 @@ html, body, #root {
 }
 .channel-item:hover { background: var(--bg-hover); color: var(--text-normal); }
 .channel-item.active { background: var(--bg-active); color: var(--header-primary); }
+
+.channel-delete-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  opacity: 0;
+  padding: 2px 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: opacity .1s, background .1s;
+}
+.channel-item:hover .channel-delete-btn { opacity: 0.6; }
+.channel-delete-btn:hover { opacity: 1 !important; background: rgba(237,66,69,.2); }
 .channel-item .channel-hash { font-size: 18px; opacity: .7; }
 
 /* User panel */

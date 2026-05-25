@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { collection, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore'
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import { isAdmin } from '../../utils/admin'
@@ -64,6 +64,16 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
     e.target.value = ''
   }
 
+  async function handleDeleteChannel(ch) {
+    if (!window.confirm(`Delete #${ch.name}? All messages will be lost.`)) return
+    // delete all messages in channel first
+    const msgsSnap = await getDocs(collection(db, 'servers', server.id, 'channels', ch.id, 'messages'))
+    await Promise.all(msgsSnap.docs.map(d => deleteDoc(d.ref)))
+    await deleteDoc(doc(db, 'servers', server.id, 'channels', ch.id))
+    // if this was the active channel, deselect it
+    if (activeChannelId === ch.id) onSelectChannel(null)
+  }
+
   function handleInvite() {
     navigator.clipboard.writeText(server.id).then(() => {
       setCopied(true)
@@ -125,7 +135,16 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
             data-tooltip={`#${ch.name}`}
           >
             <span className="channel-hash">#</span>
-            {ch.name}
+            <span style={{ flex: 1 }}>{ch.name}</span>
+            {canAdmin && (
+              <button
+                className="channel-delete-btn"
+                onClick={e => { e.stopPropagation(); handleDeleteChannel(ch) }}
+                title="Delete channel"
+              >
+                🗑️
+              </button>
+            )}
           </div>
         ))}
 
