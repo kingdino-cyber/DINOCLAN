@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import CreateServer from '../Modals/CreateServer'
 import JoinServer from '../Modals/JoinServer'
 
-export default function ServerSidebar({ activeServerId, onSelectServer }) {
+export default function ServerSidebar({ activeServerId, onSelectServer, showFriends, onToggleFriends }) {
   const { currentUser } = useAuth()
   const [servers, setServers] = useState([])
   const [modal, setModal] = useState(null) // 'create' | 'join' | null
@@ -39,11 +39,21 @@ export default function ServerSidebar({ activeServerId, onSelectServer }) {
     <div className="server-sidebar">
       {/* Home button */}
       <div
-        className={`server-icon ${!activeServerId ? 'active' : ''}`}
-        onClick={() => onSelectServer(null)}
+        className={`server-icon ${!activeServerId && !showFriends ? 'active' : ''}`}
+        onClick={() => { onSelectServer(null); }}
         data-tooltip="Home"
       >
         🦕
+      </div>
+
+      {/* Friends button */}
+      <div
+        className={`server-icon ${showFriends ? 'active' : ''}`}
+        onClick={onToggleFriends}
+        data-tooltip="Friends"
+        style={{ fontSize: 22 }}
+      >
+        🤝
       </div>
 
       <div className="server-divider" />

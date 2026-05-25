@@ -5,11 +5,13 @@ import ServerSidebar from './ServerSidebar'
 import ChannelSidebar from './ChannelSidebar'
 import ChatArea from './ChatArea'
 import DinoDecorations from '../DinoDecorations'
+import FriendsPanel from '../Friends/FriendsPanel'
 
 export default function MainLayout() {
   const [activeServerId, setActiveServerId] = useState(null)
   const [activeServer, setActiveServer] = useState(null)
   const [activeChannelId, setActiveChannelId] = useState(null)
+  const [showFriends, setShowFriends] = useState(false)
 
   useEffect(() => {
     if (!activeServerId) { setActiveServer(null); setActiveChannelId(null); return }
@@ -23,6 +25,13 @@ export default function MainLayout() {
   function handleSelectServer(serverId) {
     setActiveServerId(serverId)
     setActiveChannelId(null)
+    setShowFriends(false)
+  }
+
+  function handleToggleFriends() {
+    setShowFriends(f => !f)
+    setActiveServerId(null)
+    setActiveChannelId(null)
   }
 
   return (
@@ -31,16 +40,24 @@ export default function MainLayout() {
       <ServerSidebar
         activeServerId={activeServerId}
         onSelectServer={handleSelectServer}
+        showFriends={showFriends}
+        onToggleFriends={handleToggleFriends}
       />
-      <ChannelSidebar
-        server={activeServer}
-        activeChannelId={activeChannelId}
-        onSelectChannel={setActiveChannelId}
-      />
-      <ChatArea
-        server={activeServer}
-        channelId={activeChannelId}
-      />
+      {showFriends ? (
+        <FriendsPanel />
+      ) : (
+        <>
+          <ChannelSidebar
+            server={activeServer}
+            activeChannelId={activeChannelId}
+            onSelectChannel={setActiveChannelId}
+          />
+          <ChatArea
+            server={activeServer}
+            channelId={activeChannelId}
+          />
+        </>
+      )}
     </div>
   )
 }
