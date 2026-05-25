@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react'
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore'
+import { useState, useRef, useEffect } from 'react'
+import { addDoc, collection, serverTimestamp, doc, onSnapshot } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -7,7 +7,16 @@ export default function MessageInput({ serverId, channelId, channelName }) {
   const { currentUser } = useAuth()
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
+  const [userData, setUserData] = useState(null)
   const textareaRef = useRef(null)
+
+  useEffect(() => {
+    if (!currentUser?.uid) return
+    const unsub = onSnapshot(doc(db, 'users', currentUser.uid), snap => {
+      if (snap.exists()) setUserData(snap.data())
+    })
+    return unsub
+  }, [currentUser?.uid])
 
   function autoResize() {
     const el = textareaRef.current
@@ -28,8 +37,10 @@ export default function MessageInput({ serverId, channelId, channelName }) {
         {
           content,
           uid: currentUser.uid,
-          displayName: currentUser.displayName || currentUser.email,
-          photoURL: currentUser.photoURL || null,
+          displayName: userData?.displayName || currentUser.displayName || currentUser.email,
+          photoURL: userData?.photoURL || null,
+          avatarEmoji: userData?.avatarEmoji || null,
+          avatarBg: userData?.avatarBg || null,
           createdAt: serverTimestamp(),
         }
       )

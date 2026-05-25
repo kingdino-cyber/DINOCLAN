@@ -112,7 +112,10 @@ export default function ServerSidebar({ activeServerId, onSelectServer, showFrie
             data-tooltip={srv.name}
             title={srv.name}
           >
-            {getInitials(srv.name)}
+            {srv.photoURL
+              ? <img src={srv.photoURL} alt={srv.name} />
+              : getInitials(srv.name)
+            }
           </div>
           <button
             className="server-dots-btn"

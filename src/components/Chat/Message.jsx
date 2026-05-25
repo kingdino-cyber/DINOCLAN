@@ -19,6 +19,8 @@ export default function Message({ message, isFirst, prevMessage }) {
   const fakeUser = {
     displayName: message.displayName,
     photoURL: message.photoURL || null,
+    avatarEmoji: message.avatarEmoji || null,
+    avatarBg: message.avatarBg || null,
     uid: message.uid,
   }
 

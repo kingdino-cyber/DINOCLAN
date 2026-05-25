@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { doc, onSnapshot, updateDoc, arrayRemove } from 'firebase/firestore'
+import { doc, onSnapshot, updateDoc, arrayRemove, arrayUnion } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import { isAdmin } from '../../utils/admin'
@@ -8,7 +8,7 @@ import Avatar from '../Chat/Avatar'
 function MemberRow({ uid, serverId, server, canKick }) {
   const { currentUser } = useAuth()
   const [user, setUser] = useState(null)
-  const [confirming, setConfirming] = useState(false)
+  const [action, setAction] = useState(null) // 'kick' | 'ban' | null
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'users', uid), snap => {
@@ -18,11 +18,18 @@ function MemberRow({ uid, serverId, server, canKick }) {
   }, [uid])
 
   async function kickMember() {
-    if (!confirming) { setConfirming(true); return }
+    if (action !== 'kick') { setAction('kick'); return }
+    await updateDoc(doc(db, 'servers', serverId), { members: arrayRemove(uid) })
+    setAction(null)
+  }
+
+  async function banMember() {
+    if (action !== 'ban') { setAction('ban'); return }
     await updateDoc(doc(db, 'servers', serverId), {
       members: arrayRemove(uid),
+      banned: arrayUnion(uid),
     })
-    setConfirming(false)
+    setAction(null)
   }
 
   if (!user) return null
@@ -43,14 +50,25 @@ function MemberRow({ uid, serverId, server, canKick }) {
         </div>
       </div>
       {canKick && !isSelf && !isOwner && (
-        <button
-          className={`kick-btn ${confirming ? 'confirm' : ''}`}
-          onClick={kickMember}
-          title={confirming ? 'Click again to confirm' : 'Kick member'}
-          onBlur={() => setConfirming(false)}
-        >
-          {confirming ? '✓?' : '🥾'}
-        </button>
+        <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+          <button
+            className={`kick-btn ${action === 'kick' ? 'confirm' : ''}`}
+            onClick={kickMember}
+            title={action === 'kick' ? 'Click again to confirm kick' : 'Kick member'}
+            onBlur={() => setAction(null)}
+          >
+            {action === 'kick' ? '✓?' : '🥾'}
+          </button>
+          <button
+            className={`kick-btn ${action === 'ban' ? 'confirm' : ''}`}
+            onClick={banMember}
+            title={action === 'ban' ? 'Click again to confirm ban' : 'Ban member'}
+            onBlur={() => setAction(null)}
+            style={{ fontSize: 13 }}
+          >
+            {action === 'ban' ? '✓?' : '🔨'}
+          </button>
+        </div>
       )}
     </div>
   )

@@ -1,7 +1,5 @@
 import { useState } from 'react'
-import {
-  collection, query, where, getDocs, updateDoc, doc, arrayUnion,
-} from 'firebase/firestore'
+import { updateDoc, doc, arrayUnion, getDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -17,9 +15,11 @@ export default function JoinServer({ onClose }) {
     if (!code.trim() || loading) return
     setLoading(true)
     try {
-      // Invite code = server ID for simplicity
       const serverId = code.trim()
       const serverRef = doc(db, 'servers', serverId)
+      const snap = await getDoc(serverRef)
+      if (!snap.exists()) { setError('Invalid invite code or server not found.'); setLoading(false); return }
+      if (snap.data().banned?.includes(currentUser.uid)) { setError('You are banned from this server.'); setLoading(false); return }
       await updateDoc(serverRef, { members: arrayUnion(currentUser.uid) })
       onClose(serverId)
     } catch (err) {
