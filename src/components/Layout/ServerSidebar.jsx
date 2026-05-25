@@ -2,7 +2,7 @@ import { useState } from 'react'
 import CreateServer from '../Modals/CreateServer'
 import JoinServer from '../Modals/JoinServer'
 
-export default function ServerSidebar({ activeServerId, onSelectServer, showFriends, onToggleFriends }) {
+export default function ServerSidebar({ activeServerId, onSelectServer }) {
   const [modal, setModal] = useState(null)
 
   function handleServerCreated(serverId) {
@@ -13,20 +13,11 @@ export default function ServerSidebar({ activeServerId, onSelectServer, showFrie
   return (
     <div className="server-sidebar">
       <div
-        className={`server-icon ${!activeServerId && !showFriends ? 'active' : ''}`}
+        className={`server-icon ${!activeServerId ? 'active' : ''}`}
         onClick={() => onSelectServer(null)}
         data-tooltip="Home"
       >
         🦕
-      </div>
-
-      <div
-        className={`server-icon ${showFriends ? 'active' : ''}`}
-        onClick={onToggleFriends}
-        data-tooltip="Friends"
-        style={{ fontSize: 22 }}
-      >
-        🤝
       </div>
 
       <div className="server-divider" />

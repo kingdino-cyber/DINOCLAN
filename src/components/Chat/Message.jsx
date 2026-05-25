@@ -45,6 +45,7 @@ export default function Message({ message, isFirst, prevMessage }) {
       </div>
       <div className="msg-body">
         <div className="msg-header">
+          {message.isAdmin && <span className="admin-tag">ADMIN</span>}
           <span className="msg-author">{message.displayName}</span>
           <span className="msg-ts">{formatTimestamp(message.createdAt)}</span>
         </div>

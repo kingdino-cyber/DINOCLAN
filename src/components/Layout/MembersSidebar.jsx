@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { doc, onSnapshot, updateDoc, arrayRemove, arrayUnion } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
-import { isAdmin } from '../../utils/admin'
+import { isAdmin, isOperator } from '../../utils/admin'
 import Avatar from '../Chat/Avatar'
 
 function MemberRow({ uid, serverId, server, canKick }) {
@@ -35,12 +35,14 @@ function MemberRow({ uid, serverId, server, canKick }) {
   if (!user) return null
   const isSelf = uid === currentUser?.uid
   const isOwner = server?.ownerId === uid
+  const isOp = isOperator(user)
 
   return (
     <div className="member-item" style={{ justifyContent: 'space-between' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
         <Avatar user={user} size={32} showStatus />
         <div style={{ minWidth: 0 }}>
+          {isOp && <div className="member-admin-tag">ADMIN</div>}
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span className="member-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {user.displayName}

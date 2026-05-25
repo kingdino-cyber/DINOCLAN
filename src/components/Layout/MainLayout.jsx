@@ -12,7 +12,6 @@ export default function MainLayout() {
   const [activeServerId, setActiveServerId] = useState(null)
   const [activeServer, setActiveServer] = useState(null)
   const [activeChannelId, setActiveChannelId] = useState(null)
-  const [showFriends, setShowFriends] = useState(false)
 
   useEffect(() => {
     if (!activeServerId) { setActiveServer(null); setActiveChannelId(null); return }
@@ -26,16 +25,7 @@ export default function MainLayout() {
   function handleSelectServer(serverId) {
     setActiveServerId(serverId)
     setActiveChannelId(null)
-    setShowFriends(false)
   }
-
-  function handleToggleFriends() {
-    setShowFriends(f => !f)
-    setActiveServerId(null)
-    setActiveChannelId(null)
-  }
-
-  const isHome = !activeServerId && !showFriends
 
   return (
     <div className="app-layout">
@@ -43,20 +33,14 @@ export default function MainLayout() {
       <ServerSidebar
         activeServerId={activeServerId}
         onSelectServer={handleSelectServer}
-        showFriends={showFriends}
-        onToggleFriends={handleToggleFriends}
       />
 
-      {showFriends && <FriendsPanel />}
-
-      {isHome && (
+      {!activeServerId ? (
         <>
           <HomeServersPanel onSelectServer={handleSelectServer} />
           <FriendsPanel />
         </>
-      )}
-
-      {activeServerId && (
+      ) : (
         <>
           <ChannelSidebar
             server={activeServer}

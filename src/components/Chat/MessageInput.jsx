@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { addDoc, collection, serverTimestamp, doc, onSnapshot } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
+import { isOperator } from '../../utils/admin'
 
 export default function MessageInput({ serverId, channelId, channelName }) {
   const { currentUser } = useAuth()
@@ -41,6 +42,7 @@ export default function MessageInput({ serverId, channelId, channelName }) {
           photoURL: userData?.photoURL || null,
           avatarEmoji: userData?.avatarEmoji || null,
           avatarBg: userData?.avatarBg || null,
+          isAdmin: isOperator(currentUser),
           createdAt: serverTimestamp(),
         }
       )

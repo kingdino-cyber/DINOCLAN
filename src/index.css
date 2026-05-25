@@ -534,13 +534,39 @@ html, body, #root {
 .message-group.continued:hover .msg-ts-inline { display: block; }
 .message-group.continued .msg-avatar { visibility: hidden; }
 
+/* ADMIN tag in messages */
+.admin-tag {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  background: #c0392b;
+  color: #fff;
+  padding: 1px 5px;
+  border-radius: 3px;
+  vertical-align: middle;
+  margin-right: 5px;
+  position: relative;
+  top: -1px;
+}
+
+/* ADMIN tag in member sidebar */
+.member-admin-tag {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  color: #e74c3c;
+  margin-bottom: 1px;
+  line-height: 1;
+}
+
 /* Message input */
 .message-input-wrapper {
   padding: 0 16px 24px;
   flex-shrink: 0;
 }
 .message-input-box {
-  background: var(--bg-modifier);
+  background: #0d1a0d;
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -561,7 +587,7 @@ html, body, #root {
   font-family: inherit;
   line-height: 1.4;
 }
-.message-input-box textarea::placeholder { color: var(--text-muted); }
+.message-input-box textarea::placeholder { color: #5a7a52; }
 .message-input-box .send-btn {
   background: none;
   border: none;
