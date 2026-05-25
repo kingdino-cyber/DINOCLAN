@@ -28,8 +28,24 @@ function compressImage(file) {
   })
 }
 
-export default function MessageInput({ serverId, channelId, channelName }) {
+export default function MessageInput({ serverId, channelId, channelName, server }) {
   const { currentUser } = useAuth()
+
+  const isViewing = server?.type === 'viewing'
+  const canPost = !isViewing
+    || isOperator(currentUser)
+    || server?.ownerId === currentUser?.uid
+    || server?.editors?.includes(currentUser?.uid)
+
+  if (!canPost) {
+    return (
+      <div className="message-input-wrapper">
+        <div className="viewing-locked">
+          👁️ This is a viewing-only server. Only permitted members can post.
+        </div>
+      </div>
+    )
+  }
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [userData, setUserData] = useState(null)

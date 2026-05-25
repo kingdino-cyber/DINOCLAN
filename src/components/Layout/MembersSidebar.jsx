@@ -5,10 +5,10 @@ import { useAuth } from '../../contexts/AuthContext'
 import { isAdmin, isOperator } from '../../utils/admin'
 import Avatar from '../Chat/Avatar'
 
-function MemberRow({ uid, serverId, server, canKick }) {
+function MemberRow({ uid, serverId, server, canKick, isViewingServer, isHost }) {
   const { currentUser } = useAuth()
   const [user, setUser] = useState(null)
-  const [action, setAction] = useState(null) // 'kick' | 'ban' | null
+  const [action, setAction] = useState(null)
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'users', uid), snap => {
@@ -32,10 +32,18 @@ function MemberRow({ uid, serverId, server, canKick }) {
     setAction(null)
   }
 
+  async function toggleEditor() {
+    const isEditor = server?.editors?.includes(uid)
+    await updateDoc(doc(db, 'servers', serverId), {
+      editors: isEditor ? arrayRemove(uid) : arrayUnion(uid),
+    })
+  }
+
   if (!user) return null
   const isSelf = uid === currentUser?.uid
   const isOwner = server?.ownerId === uid
   const isOp = isOperator(user)
+  const isEditor = server?.editors?.includes(uid)
 
   return (
     <div className="member-item" style={{ justifyContent: 'space-between' }}>
@@ -48,30 +56,45 @@ function MemberRow({ uid, serverId, server, canKick }) {
               {user.displayName}
             </span>
             {isOwner && <span style={{ fontSize: 11, color: '#faa61a' }} title="Server Owner">👑</span>}
+            {isViewingServer && isEditor && !isOwner && (
+              <span style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 700 }} title="Can post">✏️</span>
+            )}
           </div>
         </div>
       </div>
-      {canKick && !isSelf && !isOwner && (
-        <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+      <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+        {isViewingServer && isHost && !isSelf && !isOwner && (
           <button
-            className={`kick-btn ${action === 'kick' ? 'confirm' : ''}`}
-            onClick={kickMember}
-            title={action === 'kick' ? 'Click again to confirm kick' : 'Kick member'}
-            onBlur={() => setAction(null)}
-          >
-            {action === 'kick' ? '✓?' : '🥾'}
-          </button>
-          <button
-            className={`kick-btn ${action === 'ban' ? 'confirm' : ''}`}
-            onClick={banMember}
-            title={action === 'ban' ? 'Click again to confirm ban' : 'Ban member'}
-            onBlur={() => setAction(null)}
+            className={`kick-btn ${isEditor ? 'confirm' : ''}`}
+            onClick={toggleEditor}
+            title={isEditor ? 'Revoke posting access' : 'Grant posting access'}
             style={{ fontSize: 13 }}
           >
-            {action === 'ban' ? '✓?' : '🔨'}
+            {isEditor ? '✏️' : '🔒'}
           </button>
-        </div>
-      )}
+        )}
+        {canKick && !isSelf && !isOwner && (
+          <>
+            <button
+              className={`kick-btn ${action === 'kick' ? 'confirm' : ''}`}
+              onClick={kickMember}
+              title={action === 'kick' ? 'Click again to confirm kick' : 'Kick member'}
+              onBlur={() => setAction(null)}
+            >
+              {action === 'kick' ? '✓?' : '🥾'}
+            </button>
+            <button
+              className={`kick-btn ${action === 'ban' ? 'confirm' : ''}`}
+              onClick={banMember}
+              title={action === 'ban' ? 'Click again to confirm ban' : 'Ban member'}
+              onBlur={() => setAction(null)}
+              style={{ fontSize: 13 }}
+            >
+              {action === 'ban' ? '✓?' : '🔨'}
+            </button>
+          </>
+        )}
+      </div>
     </div>
   )
 }
@@ -79,13 +102,14 @@ function MemberRow({ uid, serverId, server, canKick }) {
 export default function MembersSidebar({ serverId, server, memberIds }) {
   const { currentUser } = useAuth()
   const canKick = isAdmin(currentUser, server)
+  const isViewingServer = server?.type === 'viewing'
+  const isHost = server?.ownerId === currentUser?.uid || isAdmin(currentUser, server)
 
   return (
     <div className="members-sidebar">
       <h3>Members — {memberIds.length}</h3>
-      {canKick && (
-        <div className="admin-badge">⚡ Operator</div>
-      )}
+      {canKick && <div className="admin-badge">⚡ Operator</div>}
+      {isViewingServer && <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '2px 8px 6px' }}>👁️ Viewing server</div>}
       {memberIds.map(uid => (
         <MemberRow
           key={uid}
@@ -93,6 +117,8 @@ export default function MembersSidebar({ serverId, server, memberIds }) {
           serverId={serverId}
           server={server}
           canKick={canKick}
+          isViewingServer={isViewingServer}
+          isHost={isHost}
         />
       ))}
     </div>

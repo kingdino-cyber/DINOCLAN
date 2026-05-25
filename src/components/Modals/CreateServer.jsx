@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext'
 export default function CreateServer({ onClose }) {
   const { currentUser } = useAuth()
   const [name, setName] = useState('')
+  const [type, setType] = useState('editing')
   const [loading, setLoading] = useState(false)
 
   async function handleCreate(e) {
@@ -18,8 +19,9 @@ export default function CreateServer({ onClose }) {
         ownerId: currentUser.uid,
         createdAt: serverTimestamp(),
         members: [currentUser.uid],
+        type,
+        editors: [],
       })
-      // Create default general channel
       await setDoc(
         doc(db, 'servers', serverRef.id, 'channels', 'general'),
         { name: 'general', createdAt: serverTimestamp(), position: 0 }
@@ -36,7 +38,7 @@ export default function CreateServer({ onClose }) {
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal">
         <h2>Create a Server</h2>
-        <p>Give your server a name. You can always change it later.</p>
+        <p>Give your server a name and choose who can post.</p>
         <form onSubmit={handleCreate}>
           <label>Server Name</label>
           <input
@@ -47,15 +49,34 @@ export default function CreateServer({ onClose }) {
             autoFocus
             maxLength={100}
           />
-          <div className="modal-actions">
-            <button type="button" className="btn-ghost" onClick={() => onClose()}>
-              Back
-            </button>
-            <button
-              type="submit"
-              className="btn-confirm"
-              disabled={!name.trim() || loading}
+
+          <label style={{ marginTop: 16 }}>Server Type</label>
+          <div className="server-type-picker">
+            <div
+              className={`server-type-option ${type === 'editing' ? 'selected' : ''}`}
+              onClick={() => setType('editing')}
             >
+              <div className="server-type-icon">✏️</div>
+              <div>
+                <div className="server-type-name">Editing</div>
+                <div className="server-type-desc">Everyone can send messages and interact.</div>
+              </div>
+            </div>
+            <div
+              className={`server-type-option ${type === 'viewing' ? 'selected' : ''}`}
+              onClick={() => setType('viewing')}
+            >
+              <div className="server-type-icon">👁️</div>
+              <div>
+                <div className="server-type-name">Viewing</div>
+                <div className="server-type-desc">Only you (and people you grant access) can post.</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="modal-actions">
+            <button type="button" className="btn-ghost" onClick={() => onClose()}>Back</button>
+            <button type="submit" className="btn-confirm" disabled={!name.trim() || loading}>
               {loading ? 'Creating…' : 'Create Server'}
             </button>
           </div>

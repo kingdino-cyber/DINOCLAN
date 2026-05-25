@@ -826,6 +826,51 @@ html, body, #root {
 .kick-btn:hover { opacity: 1 !important; background: rgba(237,66,69,0.15); }
 .kick-btn.confirm { opacity: 1 !important; background: rgba(237,66,69,0.25); }
 
+/* Server type picker in CreateServer modal */
+.server-type-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+.server-type-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 2px solid var(--bg-modifier);
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+  background: var(--bg-modifier);
+}
+.server-type-option:hover { border-color: var(--accent); }
+.server-type-option.selected { border-color: var(--accent); background: rgba(90,158,68,.12); }
+.server-type-icon { font-size: 22px; flex-shrink: 0; margin-top: 1px; }
+.server-type-name { font-size: 14px; font-weight: 700; color: var(--header-primary); }
+.server-type-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+/* Viewing badge in chat header */
+.viewing-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--bg-modifier);
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: 8px;
+}
+
+/* Viewing locked input */
+.viewing-locked {
+  background: var(--bg-modifier);
+  border-radius: 8px;
+  padding: 14px 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
 /* Admin badge */
 .admin-badge {
   font-size: 11px;

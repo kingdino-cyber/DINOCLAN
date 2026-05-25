@@ -35,6 +35,9 @@ export default function ChatArea({ server, channelId }) {
         <div className="chat-header">
           <span className="channel-hash">#</span>
           <h3>{channel.name}</h3>
+          {server.type === 'viewing' && (
+            <span className="viewing-badge" title="Viewing server — only permitted members can post">👁️ Viewing</span>
+          )}
         </div>
 
         <div className="messages-container">
@@ -49,6 +52,7 @@ export default function ChatArea({ server, channelId }) {
           serverId={server.id}
           channelId={channelId}
           channelName={channel.name}
+          server={server}
         />
       </div>
 
