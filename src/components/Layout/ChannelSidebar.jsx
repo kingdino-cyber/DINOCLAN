@@ -3,6 +3,7 @@ import { collection, query, orderBy, onSnapshot } from 'firebase/firestore'
 import { db } from '../../firebase'
 import CreateChannel from '../Modals/CreateChannel'
 import UserPanel from './UserPanel'
+import SponsorBanner from './SponsorBanner'
 
 export default function ChannelSidebar({ server, activeChannelId, onSelectChannel }) {
   const [channels, setChannels] = useState([])
@@ -31,6 +32,7 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
         <div className="empty-state" style={{ flex: 1, justifyContent: 'center' }}>
           <p style={{ fontSize: 13 }}>Select a server</p>
         </div>
+        <SponsorBanner />
         <UserPanel />
       </div>
     )
@@ -67,6 +69,7 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
         )}
       </div>
 
+      <SponsorBanner />
       <UserPanel />
 
       {showCreate && (

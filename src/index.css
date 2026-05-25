@@ -871,6 +871,60 @@ html, body, #root {
   text-align: center;
 }
 
+/* Sponsor banner */
+.sponsor-banner {
+  padding: 8px;
+  border-top: 1px solid var(--bg-tertiary);
+  flex-shrink: 0;
+}
+.sponsor-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--text-muted);
+  padding: 0 4px 4px;
+}
+.sponsor-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  padding: 8px;
+  border: 1px solid rgba(90,158,68,.2);
+}
+.sponsor-icon { font-size: 24px; flex-shrink: 0; }
+.sponsor-info { flex: 1; min-width: 0; }
+.sponsor-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--header-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sponsor-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sponsor-btn {
+  padding: 4px 10px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: var(--border-radius);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background .15s;
+}
+.sponsor-btn:hover { background: var(--accent-hover); }
+
 /* Avatar upload */
 .avatar-upload-section {
   display: flex;
