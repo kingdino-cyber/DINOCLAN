@@ -4,6 +4,8 @@ import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import { isAdmin } from '../../utils/admin'
 import InviteToServer from '../Modals/InviteToServer'
+import SponsorBanner from './SponsorBanner'
+import UserPanel from './UserPanel'
 
 function getInitials(name) {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
@@ -131,6 +133,9 @@ export default function HomeServersPanel({ onSelectServer }) {
           onClose={() => setInviteServer(null)}
         />
       )}
+
+      <SponsorBanner />
+      <UserPanel />
     </div>
   )
 }
