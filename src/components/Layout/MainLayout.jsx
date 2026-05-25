@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { doc, onSnapshot } from 'firebase/firestore'
+import { doc, onSnapshot, collection, query, orderBy, getDocs } from 'firebase/firestore'
 import { db } from '../../firebase'
 import ServerSidebar from './ServerSidebar'
 import ChannelSidebar from './ChannelSidebar'
@@ -22,9 +22,18 @@ export default function MainLayout() {
     return unsub
   }, [activeServerId])
 
-  function handleSelectServer(serverId) {
+  async function handleSelectServer(serverId) {
     setActiveServerId(serverId)
     setActiveChannelId(null)
+    if (serverId) {
+      const snap = await getDocs(
+        query(collection(db, 'servers', serverId, 'channels'), orderBy('position', 'asc'))
+      )
+      if (!snap.empty) {
+        const general = snap.docs.find(d => d.data().name === 'general') || snap.docs[0]
+        setActiveChannelId(general.id)
+      }
+    }
   }
 
   return (

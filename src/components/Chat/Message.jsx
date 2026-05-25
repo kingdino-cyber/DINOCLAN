@@ -32,7 +32,10 @@ export default function Message({ message, isFirst, prevMessage }) {
           <Avatar user={fakeUser} size={40} />
         </div>
         <div className="msg-body">
-          <p className="msg-content">{message.content}</p>
+          {message.content && <p className="msg-content">{message.content}</p>}
+          {message.imageURL && (
+            <img src={message.imageURL} alt="attachment" className="msg-image" onClick={() => window.open(message.imageURL, '_blank')} />
+          )}
         </div>
       </div>
     )
@@ -49,7 +52,15 @@ export default function Message({ message, isFirst, prevMessage }) {
           <span className="msg-author">{message.displayName}</span>
           <span className="msg-ts">{formatTimestamp(message.createdAt)}</span>
         </div>
-        <p className="msg-content">{message.content}</p>
+        {message.content && <p className="msg-content">{message.content}</p>}
+        {message.imageURL && (
+          <img
+            src={message.imageURL}
+            alt="attachment"
+            className="msg-image"
+            onClick={() => window.open(message.imageURL, '_blank')}
+          />
+        )}
       </div>
     </div>
   )
