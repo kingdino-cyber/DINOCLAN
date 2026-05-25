@@ -51,7 +51,6 @@ export default function MainLayout() {
             server={activeServer}
             activeChannelId={activeChannelId}
             onSelectChannel={setActiveChannelId}
-            onLeaveServer={() => handleSelectServer(null)}
           />
           <ChatArea
             server={activeServer}
