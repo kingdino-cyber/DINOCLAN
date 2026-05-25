@@ -623,6 +623,62 @@ html, body, #root {
 }
 .member-item:hover .member-name { color: var(--text-normal); }
 
+/* Kick button */
+.kick-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  opacity: 0;
+  padding: 2px 5px;
+  border-radius: 4px;
+  transition: opacity .15s, background .15s;
+  flex-shrink: 0;
+}
+.member-item:hover .kick-btn { opacity: 0.6; }
+.kick-btn:hover { opacity: 1 !important; background: rgba(237,66,69,0.15); }
+.kick-btn.confirm { opacity: 1 !important; background: rgba(237,66,69,0.25); }
+
+/* Admin badge */
+.admin-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #faa61a;
+  padding: 2px 8px 6px;
+  letter-spacing: .05em;
+}
+
+/* Server dropdown */
+.server-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 8px;
+  right: 8px;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  z-index: 200;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.06);
+}
+.server-dropdown-item {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text-normal);
+  font-size: 13px;
+  padding: 10px 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background .1s;
+}
+.server-dropdown-item:hover { background: var(--bg-hover); }
+.server-dropdown-item.leave { color: #faa61a; }
+.server-dropdown-item.leave:hover { background: rgba(250,166,26,.12); }
+.server-dropdown-item.delete { color: var(--danger); }
+.server-dropdown-item.delete:hover { background: rgba(237,66,69,.12); }
+
 /* Tooltip */
 [data-tooltip] { position: relative; }
 [data-tooltip]::after {

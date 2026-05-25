@@ -52,7 +52,7 @@ export default function ChatArea({ server, channelId }) {
         />
       </div>
 
-      <MembersSidebar serverId={server.id} memberIds={server.members || []} />
+      <MembersSidebar serverId={server.id} server={server} memberIds={server.members || []} />
     </>
   )
 }
