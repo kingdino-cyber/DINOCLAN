@@ -6,6 +6,7 @@ import ChannelSidebar from './ChannelSidebar'
 import ChatArea from './ChatArea'
 import DinoDecorations from '../DinoDecorations'
 import FriendsPanel from '../Friends/FriendsPanel'
+import HomeServersPanel from './HomeServersPanel'
 
 export default function MainLayout() {
   const [activeServerId, setActiveServerId] = useState(null)
@@ -34,6 +35,8 @@ export default function MainLayout() {
     setActiveChannelId(null)
   }
 
+  const isHome = !activeServerId && !showFriends
+
   return (
     <div className="app-layout">
       <DinoDecorations />
@@ -43,9 +46,17 @@ export default function MainLayout() {
         showFriends={showFriends}
         onToggleFriends={handleToggleFriends}
       />
-      {showFriends ? (
-        <FriendsPanel />
-      ) : (
+
+      {showFriends && <FriendsPanel />}
+
+      {isHome && (
+        <>
+          <HomeServersPanel onSelectServer={handleSelectServer} />
+          <FriendsPanel />
+        </>
+      )}
+
+      {activeServerId && (
         <>
           <ChannelSidebar
             server={activeServer}

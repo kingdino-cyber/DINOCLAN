@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   collection, query, where, onSnapshot, addDoc,
-  updateDoc, doc, serverTimestamp, getDocs, or,
+  updateDoc, doc, serverTimestamp, getDocs, arrayUnion,
 } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -32,6 +32,7 @@ export default function FriendsPanel() {
   const [tab, setTab] = useState('all')
   const [requests, setRequests] = useState([])
   const [friends, setFriends] = useState([])
+  const [serverInvites, setServerInvites] = useState([])
   const [searchEmail, setSearchEmail] = useState('')
   const [addStatus, setAddStatus] = useState('')
   const [userData, setUserData] = useState(null)
@@ -58,6 +59,27 @@ export default function FriendsPanel() {
   useEffect(() => {
     setFriends(userData?.friends || [])
   }, [userData])
+
+  useEffect(() => {
+    const q = query(
+      collection(db, 'serverInvites'),
+      where('toUid', '==', currentUser.uid),
+      where('status', '==', 'pending'),
+    )
+    const unsub = onSnapshot(q, snap => {
+      setServerInvites(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    })
+    return unsub
+  }, [currentUser.uid])
+
+  async function acceptServerInvite(inv) {
+    await updateDoc(doc(db, 'serverInvites', inv.id), { status: 'accepted' })
+    await updateDoc(doc(db, 'servers', inv.serverId), { members: arrayUnion(currentUser.uid) })
+  }
+
+  async function declineServerInvite(inv) {
+    await updateDoc(doc(db, 'serverInvites', inv.id), { status: 'declined' })
+  }
 
   async function sendRequest() {
     setAddStatus('')
@@ -124,6 +146,9 @@ export default function FriendsPanel() {
         <button className={`friends-tab ${tab === 'add' ? 'active' : ''}`} onClick={() => setTab('add')} data-tooltip="Add a friend.">
           Add Friend
         </button>
+        <button className={`friends-tab ${tab === 'invites' ? 'active' : ''}`} onClick={() => setTab('invites')} data-tooltip="Server invites.">
+          Invites {serverInvites.length > 0 && <span className="badge">{serverInvites.length}</span>}
+        </button>
       </div>
 
       <div className="friends-body">
@@ -149,6 +174,25 @@ export default function FriendsPanel() {
                   </div>
                   <button className="btn-confirm" style={{ padding: '4px 12px', fontSize: 13 }} onClick={() => acceptRequest(req)}>✓</button>
                   <button className="btn-danger" style={{ padding: '4px 12px', fontSize: 13 }} onClick={() => declineRequest(req)}>✗</button>
+                </div>
+              ))
+            }
+          </>
+        )}
+
+        {tab === 'invites' && (
+          <>
+            {serverInvites.length === 0
+              ? <div className="friends-empty"><span>📭</span><p>No server invites</p></div>
+              : serverInvites.map(inv => (
+                <div key={inv.id} className="friend-request-row">
+                  <span style={{ fontSize: 28 }}>🏠</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: 'var(--header-primary)', fontWeight: 600 }}>{inv.serverName}</div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>from {inv.fromDisplayName}</div>
+                  </div>
+                  <button className="btn-confirm" style={{ padding: '4px 12px', fontSize: 13 }} onClick={() => acceptServerInvite(inv)}>Join</button>
+                  <button className="btn-danger" style={{ padding: '4px 12px', fontSize: 13 }} onClick={() => declineServerInvite(inv)}>✗</button>
                 </div>
               ))
             }
