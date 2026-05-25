@@ -257,7 +257,7 @@ html, body, #root {
 
 /* Channel sidebar */
 .channel-sidebar {
-  width: 240px;
+  width: 480px;
   background: var(--bg-secondary);
   display: flex;
   flex-direction: column;
