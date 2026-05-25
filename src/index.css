@@ -257,7 +257,7 @@ html, body, #root {
 
 /* Channel sidebar */
 .channel-sidebar {
-  width: 480px;
+  width: 360px;
   background: var(--bg-secondary);
   display: flex;
   flex-direction: column;
@@ -1027,7 +1027,7 @@ html, body, #root {
 
 /* Home servers panel */
 .home-servers-panel {
-  width: 480px;
+  width: 360px;
   flex-shrink: 0;
   background: var(--bg-secondary);
   display: flex;
