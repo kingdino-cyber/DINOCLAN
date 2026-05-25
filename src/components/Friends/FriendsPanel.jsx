@@ -115,13 +115,13 @@ export default function FriendsPanel() {
       </div>
 
       <div className="friends-tabs">
-        <button className={`friends-tab ${tab === 'all' ? 'active' : ''}`} onClick={() => setTab('all')}>
+        <button className={`friends-tab ${tab === 'all' ? 'active' : ''}`} onClick={() => setTab('all')} data-tooltip="Your friends.">
           All Friends {friends.length > 0 && <span className="badge">{friends.length}</span>}
         </button>
-        <button className={`friends-tab ${tab === 'pending' ? 'active' : ''}`} onClick={() => setTab('pending')}>
+        <button className={`friends-tab ${tab === 'pending' ? 'active' : ''}`} onClick={() => setTab('pending')} data-tooltip="Incoming requests.">
           Pending {requests.length > 0 && <span className="badge">{requests.length}</span>}
         </button>
-        <button className={`friends-tab ${tab === 'add' ? 'active' : ''}`} onClick={() => setTab('add')}>
+        <button className={`friends-tab ${tab === 'add' ? 'active' : ''}`} onClick={() => setTab('add')} data-tooltip="Add a friend.">
           Add Friend
         </button>
       </div>

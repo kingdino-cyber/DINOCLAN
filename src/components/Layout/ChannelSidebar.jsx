@@ -53,6 +53,7 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
             key={ch.id}
             className={`channel-item ${activeChannelId === ch.id ? 'active' : ''}`}
             onClick={() => onSelectChannel(ch.id)}
+            data-tooltip={`#${ch.name}`}
           >
             <span className="channel-hash">#</span>
             {ch.name}

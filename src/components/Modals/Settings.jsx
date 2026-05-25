@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { doc, updateDoc } from 'firebase/firestore'
 import { updateProfile } from 'firebase/auth'
 import { db, auth } from '../../firebase'
@@ -20,21 +20,58 @@ const PRESET_AVATARS = [
 ]
 
 const STATUSES = [
-  { id: 'online',  label: 'Online',           color: '#3ba55d' },
-  { id: 'idle',    label: 'Idle',              color: '#faa61a' },
-  { id: 'dnd',     label: 'Do Not Disturb',    color: '#ed4245' },
-  { id: 'offline', label: 'Invisible',         color: '#747f8d' },
+  { id: 'online',  label: 'Online',        color: '#3ba55d' },
+  { id: 'idle',    label: 'Idle',           color: '#faa61a' },
+  { id: 'dnd',     label: 'Do Not Disturb', color: '#ed4245' },
+  { id: 'offline', label: 'Invisible',      color: '#747f8d' },
 ]
+
+function compressImage(file, maxSize = 128) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      const scale = Math.min(maxSize / img.width, maxSize / img.height, 1)
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+      URL.revokeObjectURL(url)
+      resolve(canvas.toDataURL('image/jpeg', 0.75))
+    }
+    img.onerror = reject
+    img.src = url
+  })
+}
 
 export default function Settings({ onClose }) {
   const { currentUser } = useAuth()
   const [tab, setTab] = useState('profile')
   const [displayName, setDisplayName] = useState(currentUser?.displayName || '')
-  const [customUrl, setCustomUrl] = useState('')
   const [selectedAvatar, setSelectedAvatar] = useState(null)
+  const [previewUrl, setPreviewUrl] = useState(null)
+  const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const fileInputRef = useRef(null)
+
+  async function handleFileChange(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) { setError('Please select an image file.'); return }
+    setUploading(true)
+    setError('')
+    try {
+      const dataUrl = await compressImage(file)
+      setPreviewUrl(dataUrl)
+      setSelectedAvatar(null)
+    } catch {
+      setError('Failed to process image.')
+    } finally {
+      setUploading(false)
+    }
+  }
 
   async function handleSaveProfile(e) {
     e.preventDefault()
@@ -43,11 +80,11 @@ export default function Settings({ onClose }) {
     setError('')
     try {
       const updates = { displayName: displayName.trim() }
-      if (customUrl.trim()) {
-        updates.photoURL = customUrl.trim()
+      if (previewUrl) {
+        updates.photoURL = previewUrl
         updates.avatarEmoji = null
         updates.avatarBg = null
-        await updateProfile(auth.currentUser, { displayName: displayName.trim(), photoURL: customUrl.trim() })
+        await updateProfile(auth.currentUser, { displayName: displayName.trim(), photoURL: previewUrl })
       } else if (selectedAvatar) {
         updates.avatarEmoji = selectedAvatar.emoji
         updates.avatarBg = selectedAvatar.bg
@@ -70,26 +107,26 @@ export default function Settings({ onClose }) {
     await updateDoc(doc(db, 'users', currentUser.uid), { status: statusId })
   }
 
+  const avatarDisplay = previewUrl
+    ? <img src={previewUrl} alt="preview" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+    : selectedAvatar
+      ? <span style={{ fontSize: 32 }}>{selectedAvatar.emoji}</span>
+      : <span style={{ fontSize: 24, fontWeight: 700 }}>{(currentUser?.displayName?.[0] || '?').toUpperCase()}</span>
+
   return (
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="settings-modal">
         {/* Sidebar */}
         <div className="settings-sidebar">
           <div className="settings-category">User Settings</div>
-          <div
-            className={`settings-tab ${tab === 'profile' ? 'active' : ''}`}
-            onClick={() => setTab('profile')}
-          >
+          <div className={`settings-tab ${tab === 'profile' ? 'active' : ''}`} onClick={() => setTab('profile')} data-tooltip="Edit your profile.">
             👤 My Account
           </div>
-          <div
-            className={`settings-tab ${tab === 'status' ? 'active' : ''}`}
-            onClick={() => setTab('status')}
-          >
+          <div className={`settings-tab ${tab === 'status' ? 'active' : ''}`} onClick={() => setTab('status')} data-tooltip="Set your status.">
             🟢 Status
           </div>
           <div className="settings-divider" />
-          <div className="settings-tab danger" onClick={onClose}>
+          <div className="settings-tab danger" onClick={onClose} data-tooltip="Close settings.">
             ✕ Close
           </div>
         </div>
@@ -100,14 +137,29 @@ export default function Settings({ onClose }) {
             <>
               <h2>My Account</h2>
 
-              {/* Current avatar preview */}
-              <div className="avatar-preview-row">
-                <div className="avatar-preview-big" style={{ background: selectedAvatar?.bg || '#5a9e44' }}>
-                  {selectedAvatar ? selectedAvatar.emoji : (currentUser?.displayName?.[0] || '?').toUpperCase()}
+              {/* Avatar upload area */}
+              <div className="avatar-upload-section">
+                <div
+                  className="avatar-upload-circle"
+                  style={{ background: selectedAvatar?.bg || '#5a9e44' }}
+                  onClick={() => fileInputRef.current?.click()}
+                  data-tooltip="Click to upload photo."
+                >
+                  {avatarDisplay}
+                  <div className="avatar-upload-overlay">
+                    {uploading ? '⏳' : '📷 Upload'}
+                  </div>
                 </div>
-                <div>
-                  <div style={{ color: 'var(--header-primary)', fontWeight: 700 }}>{displayName}</div>
-                  <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>{currentUser?.email}</div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={handleFileChange}
+                />
+                <div className="avatar-upload-hint">
+                  <strong>Click the circle</strong> to upload a photo from your computer.<br />
+                  <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>Or pick a dino avatar below.</span>
                 </div>
               </div>
 
@@ -121,27 +173,20 @@ export default function Settings({ onClose }) {
                   maxLength={32}
                 />
 
-                <label className="settings-label">Choose a Dino Avatar 🦕</label>
+                <label className="settings-label">Or choose a Dino Avatar 🦕</label>
                 <div className="avatar-grid">
                   {PRESET_AVATARS.map(av => (
                     <div
                       key={av.id}
                       className={`avatar-option ${selectedAvatar?.id === av.id ? 'selected' : ''}`}
                       style={{ background: av.bg }}
-                      onClick={() => { setSelectedAvatar(av); setCustomUrl('') }}
+                      onClick={() => { setSelectedAvatar(av); setPreviewUrl(null) }}
+                      data-tooltip={av.emoji}
                     >
                       {av.emoji}
                     </div>
                   ))}
                 </div>
-
-                <label className="settings-label">Or paste a custom image URL</label>
-                <input
-                  className="settings-input"
-                  value={customUrl}
-                  onChange={e => { setCustomUrl(e.target.value); setSelectedAvatar(null) }}
-                  placeholder="https://example.com/my-image.png"
-                />
 
                 {error && <div className="auth-error" style={{ marginTop: 8 }}>{error}</div>}
 
@@ -160,11 +205,7 @@ export default function Settings({ onClose }) {
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {STATUSES.map(s => (
-                  <div
-                    key={s.id}
-                    className="status-option"
-                    onClick={() => handleStatus(s.id)}
-                  >
+                  <div key={s.id} className="status-option" onClick={() => handleStatus(s.id)} data-tooltip={`Set as ${s.label}.`}>
                     <span className="status-dot-big" style={{ background: s.color }} />
                     {s.label}
                   </div>
