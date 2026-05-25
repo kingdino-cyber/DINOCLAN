@@ -79,19 +79,18 @@ export default function Settings({ onClose }) {
     setSaving(true)
     setError('')
     try {
+      // Only update displayName in Firebase Auth (photoURL is stored in Firestore only)
+      await updateProfile(auth.currentUser, { displayName: displayName.trim() })
+
       const updates = { displayName: displayName.trim() }
       if (previewUrl) {
         updates.photoURL = previewUrl
         updates.avatarEmoji = null
         updates.avatarBg = null
-        await updateProfile(auth.currentUser, { displayName: displayName.trim(), photoURL: previewUrl })
       } else if (selectedAvatar) {
         updates.avatarEmoji = selectedAvatar.emoji
         updates.avatarBg = selectedAvatar.bg
         updates.photoURL = null
-        await updateProfile(auth.currentUser, { displayName: displayName.trim(), photoURL: null })
-      } else {
-        await updateProfile(auth.currentUser, { displayName: displayName.trim() })
       }
       await updateDoc(doc(db, 'users', currentUser.uid), updates)
       setSaved(true)
