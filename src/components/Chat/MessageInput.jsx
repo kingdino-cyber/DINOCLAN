@@ -4,6 +4,25 @@ import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import { isOperator } from '../../utils/admin'
 
+const EMOJI_CATEGORIES = [
+  {
+    label: '🦕 Dino',
+    emojis: ['🦕','🦖','🐊','🦎','🐢','🥚','🦴','🌋','🏔️','🌿','🌴','🪨','💀','🔥','⚡','🌊','🥩','🦷','👣','🪺'],
+  },
+  {
+    label: '😄 Happy',
+    emojis: ['😄','😁','😆','🥰','😍','🤩','😎','🥳','😊','😀','😂','🤣','😜','😝','🤗','😇','🙌','👏','🎉','🎊'],
+  },
+  {
+    label: '👍 Reactions',
+    emojis: ['👍','👎','❤️','💔','🔥','✅','❌','⭐','💯','💥','🎯','🤔','😮','😢','😡','👀','💀','🙏','🫡','🫶'],
+  },
+  {
+    label: '🌿 Nature',
+    emojis: ['🌴','🌿','🍃','🌺','🌸','🌻','🍄','🐾','🌙','☀️','🌈','⛈️','❄️','🌊','🏝️','🌾','🦋','🐝','🐸','🌵'],
+  },
+]
+
 function compressImage(file) {
   return new Promise(resolve => {
     const reader = new FileReader()
@@ -46,12 +65,16 @@ export default function MessageInput({ serverId, channelId, channelName, server 
       </div>
     )
   }
+
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [userData, setUserData] = useState(null)
   const [pendingImage, setPendingImage] = useState(null)
+  const [showEmoji, setShowEmoji] = useState(false)
+  const [emojiTab, setEmojiTab] = useState(0)
   const textareaRef = useRef(null)
   const fileRef = useRef(null)
+  const emojiRef = useRef(null)
 
   useEffect(() => {
     if (!currentUser?.uid) return
@@ -61,11 +84,41 @@ export default function MessageInput({ serverId, channelId, channelName, server 
     return unsub
   }, [currentUser?.uid])
 
+  // Close emoji picker on outside click
+  useEffect(() => {
+    if (!showEmoji) return
+    function handler(e) {
+      if (emojiRef.current && !emojiRef.current.contains(e.target)) {
+        setShowEmoji(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showEmoji])
+
   function autoResize() {
     const el = textareaRef.current
     if (!el) return
     el.style.height = 'auto'
     el.style.height = Math.min(el.scrollHeight, 200) + 'px'
+  }
+
+  function insertEmoji(emoji) {
+    const el = textareaRef.current
+    if (!el) {
+      setText(t => t + emoji)
+      return
+    }
+    const start = el.selectionStart
+    const end = el.selectionEnd
+    const newText = text.slice(0, start) + emoji + text.slice(end)
+    setText(newText)
+    // Restore cursor after emoji
+    setTimeout(() => {
+      el.focus()
+      el.setSelectionRange(start + emoji.length, start + emoji.length)
+      autoResize()
+    }, 0)
   }
 
   async function handlePaste(e) {
@@ -142,6 +195,7 @@ export default function MessageInput({ serverId, channelId, channelName, server 
           +
         </button>
         <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileSelect} />
+
         <textarea
           ref={textareaRef}
           value={text}
@@ -151,6 +205,46 @@ export default function MessageInput({ serverId, channelId, channelName, server 
           placeholder={`Message #${channelName}`}
           rows={1}
         />
+
+        {/* Emoji picker button */}
+        <div className="emoji-picker-wrap" ref={emojiRef}>
+          <button
+            className="emoji-btn"
+            onClick={() => setShowEmoji(s => !s)}
+            title="Emoji picker"
+          >😊</button>
+
+          {showEmoji && (
+            <div className="emoji-panel">
+              <div className="emoji-tabs">
+                {EMOJI_CATEGORIES.map((cat, i) => (
+                  <button
+                    key={i}
+                    className={`emoji-tab-btn ${emojiTab === i ? 'active' : ''}`}
+                    onClick={() => setEmojiTab(i)}
+                    title={cat.label}
+                  >
+                    {cat.emojis[0]}
+                  </button>
+                ))}
+              </div>
+              <div className="emoji-category-label">{EMOJI_CATEGORIES[emojiTab].label}</div>
+              <div className="emoji-grid">
+                {EMOJI_CATEGORIES[emojiTab].emojis.map(em => (
+                  <button
+                    key={em}
+                    className="emoji-item"
+                    onClick={() => { insertEmoji(em); setShowEmoji(false) }}
+                    title={em}
+                  >
+                    {em}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         <button
           className={`send-btn ${canSend ? 'active' : ''}`}
           onClick={sendMessage}
