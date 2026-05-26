@@ -4,6 +4,7 @@ import { CallProvider } from './contexts/CallContext'
 import Login from './components/Auth/Login'
 import Register from './components/Auth/Register'
 import MainLayout from './components/Layout/MainLayout'
+import WordCounter from './components/WordCounter/WordCounter'
 
 function PrivateRoute({ children }) {
   const { currentUser } = useAuth()
@@ -12,7 +13,7 @@ function PrivateRoute({ children }) {
 
 function PublicRoute({ children }) {
   const { currentUser } = useAuth()
-  return !currentUser ? children : <Navigate to="/" replace />
+  return !currentUser ? children : <Navigate to="/app" replace />
 }
 
 export default function App() {
@@ -21,9 +22,10 @@ export default function App() {
       <BrowserRouter>
         <CallProvider>
           <Routes>
+            <Route path="/" element={<WordCounter />} />
             <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
             <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-            <Route path="/*" element={<PrivateRoute><MainLayout /></PrivateRoute>} />
+            <Route path="/app/*" element={<PrivateRoute><MainLayout /></PrivateRoute>} />
           </Routes>
         </CallProvider>
       </BrowserRouter>
