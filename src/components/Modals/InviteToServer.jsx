@@ -3,7 +3,7 @@ import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'fire
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 
-export default function InviteToServer({ serverId, serverName, onClose }) {
+export default function InviteToServer({ serverId, serverName, kind = 'server', onClose }) {
   const { currentUser } = useAuth()
   const [email, setEmail] = useState('')
   const [status, setStatus] = useState('')
@@ -25,6 +25,7 @@ export default function InviteToServer({ serverId, serverName, onClose }) {
         fromDisplayName: currentUser.displayName || currentUser.email,
         serverId,
         serverName,
+        kind,
         status: 'pending',
         createdAt: serverTimestamp(),
       })
@@ -38,7 +39,7 @@ export default function InviteToServer({ serverId, serverName, onClose }) {
   return (
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal">
-        <h2>Invite to {serverName}</h2>
+        <h2>Invite to {serverName} {kind === 'group' ? '👥' : '🏠'}</h2>
         {status === 'sent' ? (
           <div style={{ textAlign: 'center', padding: '16px 0' }}>
             <div style={{ fontSize: 36 }}>🦕</div>

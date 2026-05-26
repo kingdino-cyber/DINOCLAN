@@ -189,15 +189,19 @@ export default function FriendsPanel({ onStartDM }) {
         {tab === 'invites' && (
           <>
             {serverInvites.length === 0
-              ? <div className="friends-empty"><span>📭</span><p>No server invites</p></div>
+              ? <div className="friends-empty"><span>📭</span><p>No pending invites</p></div>
               : serverInvites.map(inv => (
                 <div key={inv.id} className="friend-request-row">
-                  <span style={{ fontSize: 28 }}>🏠</span>
+                  <span style={{ fontSize: 28 }}>{inv.kind === 'group' ? '👥' : '🏠'}</span>
                   <div style={{ flex: 1 }}>
                     <div style={{ color: 'var(--header-primary)', fontWeight: 600 }}>{inv.serverName}</div>
-                    <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>from {inv.fromDisplayName}</div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                      {inv.kind === 'group' ? 'Group' : 'Server'} invite from {inv.fromDisplayName}
+                    </div>
                   </div>
-                  <button className="btn-confirm" style={{ padding: '4px 12px', fontSize: 13 }} onClick={() => acceptServerInvite(inv)}>Join</button>
+                  <button className="btn-confirm" style={{ padding: '4px 12px', fontSize: 13 }} onClick={() => acceptServerInvite(inv)}>
+                    {inv.kind === 'group' ? 'Join Group' : 'Join'}
+                  </button>
                   <button className="btn-danger" style={{ padding: '4px 12px', fontSize: 13 }} onClick={() => declineServerInvite(inv)}>✗</button>
                 </div>
               ))

@@ -33,6 +33,7 @@ export default function CreateServer({ onClose }) {
         ownerId: currentUser.uid,
         createdAt: serverTimestamp(),
         members: [currentUser.uid],
+        kind: 'server',
         type,
         editors: [],
         address: finalAddress || null,

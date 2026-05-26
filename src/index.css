@@ -1179,6 +1179,24 @@ html, body, #root {
   padding: 16px 12px;
   border-bottom: 1px solid var(--bg-tertiary);
 }
+.create-group-btn {
+  margin-left: auto;
+  background: var(--accent);
+  border: none;
+  color: #fff;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background .1s;
+}
+.create-group-btn:hover { background: var(--accent-hover); }
 .home-servers-header h2 {
   font-size: 15px;
   font-weight: 700;
