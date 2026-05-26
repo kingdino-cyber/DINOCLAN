@@ -15,9 +15,20 @@ function RemoteAudio({ streams }) {
 function AudioElement({ stream }) {
   const ref = useRef(null)
   useEffect(() => {
-    if (ref.current && stream) {
-      ref.current.srcObject = stream
+    const el = ref.current
+    if (!el || !stream) return
+    el.srcObject = stream
+    // Some browsers block autoplay — retry on the next user interaction
+    const attempt = () => {
+      el.play().catch(() => {
+        const retryOnClick = () => {
+          el.play().catch(() => {})
+          document.removeEventListener('click', retryOnClick)
+        }
+        document.addEventListener('click', retryOnClick)
+      })
     }
+    attempt()
   }, [stream])
   return <audio ref={ref} autoPlay playsInline style={{ display: 'none' }} />
 }

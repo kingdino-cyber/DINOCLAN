@@ -65,8 +65,10 @@ export function CallProvider({ children }) {
       )
     }
 
+    // Use the stream from the event, or build one from the track if missing
     peer.ontrack = e => {
-      setRemoteStreams(prev => ({ ...prev, [targetUid]: e.streams[0] }))
+      const stream = (e.streams && e.streams[0]) || new MediaStream([e.track])
+      setRemoteStreams(prev => ({ ...prev, [targetUid]: stream }))
     }
 
     peer.onicecandidate = async e => {
@@ -104,7 +106,9 @@ export function CallProvider({ children }) {
         if (sig.type === 'offer') {
           let peer = peersRef.current[fromUid]
           if (!peer) peer = makePeer(fromUid, callId)
-          if (peer.signalingState !== 'stable') {
+          // A fresh RTCPeerConnection starts in 'stable' — that's exactly when we
+          // should accept an offer. 'have-remote-offer' handles re-negotiation.
+          if (peer.signalingState === 'stable' || peer.signalingState === 'have-remote-offer') {
             await peer.setRemoteDescription(JSON.parse(sig.data))
             const answer = await peer.createAnswer()
             await peer.setLocalDescription(answer)
@@ -122,8 +126,20 @@ export function CallProvider({ children }) {
           }
         } else if (sig.type === 'ice-candidate') {
           const peer = peersRef.current[fromUid]
-          if (peer && peer.remoteDescription) {
-            try { await peer.addIceCandidate(JSON.parse(sig.data)) } catch (_) {}
+          // Buffer candidate if remote description not yet set
+          if (peer) {
+            if (peer.remoteDescription) {
+              try { await peer.addIceCandidate(JSON.parse(sig.data)) } catch (_) {}
+            } else {
+              // Retry once remote description lands
+              const tryAdd = setInterval(async () => {
+                if (peer.remoteDescription) {
+                  clearInterval(tryAdd)
+                  try { await peer.addIceCandidate(JSON.parse(sig.data)) } catch (_) {}
+                }
+              }, 100)
+              setTimeout(() => clearInterval(tryAdd), 10000)
+            }
           }
         }
       }
