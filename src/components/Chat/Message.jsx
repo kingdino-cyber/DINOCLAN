@@ -1,4 +1,9 @@
+import { useState } from 'react'
 import { format, isToday, isYesterday } from 'date-fns'
+import { doc, updateDoc } from 'firebase/firestore'
+import { db } from '../../firebase'
+import { useAuth } from '../../contexts/AuthContext'
+import { isAdmin } from '../../utils/admin'
 import Avatar from './Avatar'
 
 function formatTimestamp(ts, short = false) {
@@ -10,7 +15,43 @@ function formatTimestamp(ts, short = false) {
   return format(date, 'dd/MM/yyyy HH:mm')
 }
 
-export default function Message({ message, isFirst, prevMessage }) {
+function MessageMenu({ message, serverId, channelId, onClose }) {
+  const { currentUser } = useAuth()
+  const canModerate = message.uid === currentUser?.uid || isAdmin(currentUser, null)
+
+  async function toggleImportant() {
+    await updateDoc(
+      doc(db, 'servers', serverId, 'channels', channelId, 'messages', message.id),
+      { important: !message.important }
+    )
+    onClose()
+  }
+
+  async function togglePin() {
+    await updateDoc(
+      doc(db, 'servers', serverId, 'channels', channelId, 'messages', message.id),
+      { pinned: !message.pinned }
+    )
+    onClose()
+  }
+
+  return (
+    <div className="msg-context-menu" onClick={e => e.stopPropagation()}>
+      <button className="msg-ctx-item" onClick={toggleImportant}>
+        {message.important ? '🔕 Remove Importance' : '⚠️ Mark as Important'}
+      </button>
+      {canModerate && (
+        <button className="msg-ctx-item" onClick={togglePin}>
+          {message.pinned ? '📌 Unpin' : '📌 Pin Message'}
+        </button>
+      )}
+    </div>
+  )
+}
+
+export default function Message({ message, isFirst, prevMessage, serverId, channelId }) {
+  const [showMenu, setShowMenu] = useState(false)
+
   const sameAuthor = !isFirst &&
     prevMessage?.uid === message.uid &&
     message.createdAt && prevMessage?.createdAt &&
@@ -24,28 +65,51 @@ export default function Message({ message, isFirst, prevMessage }) {
     uid: message.uid,
   }
 
+  const importantClass = message.important ? 'msg-important' : ''
+  const pinnedClass = message.pinned ? 'msg-pinned' : ''
+
+  function handleClick(e) {
+    e.stopPropagation()
+    setShowMenu(m => !m)
+  }
+
+  const menuEl = showMenu && (
+    <MessageMenu
+      message={message}
+      serverId={serverId}
+      channelId={channelId}
+      onClose={() => setShowMenu(false)}
+    />
+  )
+
   if (sameAuthor) {
     return (
-      <div className="message-group continued">
+      <div
+        className={`message-group continued ${importantClass} ${pinnedClass}`}
+        onClick={handleClick}
+      >
+        {message.pinned && <span className="pin-label">📌 Pinned</span>}
         <span className="msg-ts-inline">{formatTimestamp(message.createdAt, true)}</span>
-        <div className="msg-avatar">
-          <Avatar user={fakeUser} size={40} />
-        </div>
+        <div className="msg-avatar"><Avatar user={fakeUser} size={40} /></div>
         <div className="msg-body">
           {message.content && <p className="msg-content">{message.content}</p>}
           {message.imageURL && (
             <img src={message.imageURL} alt="attachment" className="msg-image" onClick={() => window.open(message.imageURL, '_blank')} />
           )}
         </div>
+        {message.important && <span className="importance-badge">⚠️ Important</span>}
+        {menuEl}
       </div>
     )
   }
 
   return (
-    <div className={`message-group first`}>
-      <div className="msg-avatar">
-        <Avatar user={fakeUser} size={40} />
-      </div>
+    <div
+      className={`message-group first ${importantClass} ${pinnedClass}`}
+      onClick={handleClick}
+    >
+      {message.pinned && <span className="pin-label">📌 Pinned</span>}
+      <div className="msg-avatar"><Avatar user={fakeUser} size={40} /></div>
       <div className="msg-body">
         <div className="msg-header">
           {message.isAdmin && <span className="admin-tag">ADMIN</span>}
@@ -54,14 +118,11 @@ export default function Message({ message, isFirst, prevMessage }) {
         </div>
         {message.content && <p className="msg-content">{message.content}</p>}
         {message.imageURL && (
-          <img
-            src={message.imageURL}
-            alt="attachment"
-            className="msg-image"
-            onClick={() => window.open(message.imageURL, '_blank')}
-          />
+          <img src={message.imageURL} alt="attachment" className="msg-image" onClick={() => window.open(message.imageURL, '_blank')} />
         )}
       </div>
+      {message.important && <span className="importance-badge">⚠️ Important</span>}
+      {menuEl}
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { updateDoc, doc, arrayUnion, getDoc } from 'firebase/firestore'
+import { updateDoc, doc, arrayUnion, getDoc, collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -15,15 +15,34 @@ export default function JoinServer({ onClose }) {
     if (!code.trim() || loading) return
     setLoading(true)
     try {
-      const serverId = code.trim()
-      const serverRef = doc(db, 'servers', serverId)
-      const snap = await getDoc(serverRef)
-      if (!snap.exists()) { setError('Invalid invite code or server not found.'); setLoading(false); return }
-      if (snap.data().banned?.includes(currentUser.uid)) { setError('You are banned from this server.'); setLoading(false); return }
+      const input = code.trim()
+      let serverRef = null
+      let serverData = null
+
+      // Try by custom address first
+      const addrQ = query(collection(db, 'servers'), where('address', '==', input.toLowerCase()))
+      const addrSnap = await getDocs(addrQ)
+      if (!addrSnap.empty) {
+        serverRef = addrSnap.docs[0].ref
+        serverData = addrSnap.docs[0].data()
+      } else {
+        // Fall back to document ID
+        serverRef = doc(db, 'servers', input)
+        const snap = await getDoc(serverRef)
+        if (!snap.exists()) { setError('Server not found. Check the address or ID.'); setLoading(false); return }
+        serverData = snap.data()
+      }
+
+      if (serverData.banned?.includes(currentUser.uid)) {
+        setError('You are banned from this server.')
+        setLoading(false)
+        return
+      }
+
       await updateDoc(serverRef, { members: arrayUnion(currentUser.uid) })
-      onClose(serverId)
+      onClose(serverRef.id)
     } catch (err) {
-      setError('Invalid invite code or server not found.')
+      setError('Server not found. Check the address or ID.')
     } finally {
       setLoading(false)
     }
@@ -33,26 +52,20 @@ export default function JoinServer({ onClose }) {
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal">
         <h2>Join a Server</h2>
-        <p>Enter a server invite code to join an existing server. The invite code is the server ID (shown in the URL).</p>
+        <p>Enter a server address (e.g. <strong>my-server</strong>) or paste a server ID.</p>
         <form onSubmit={handleJoin}>
-          <label>Invite Code</label>
+          <label>Server Address or ID</label>
           <input
             type="text"
             value={code}
             onChange={e => setCode(e.target.value)}
-            placeholder="Paste server ID here"
+            placeholder="my-server or paste ID"
             autoFocus
           />
           {error && <div className="auth-error" style={{ marginTop: 8 }}>{error}</div>}
           <div className="modal-actions">
-            <button type="button" className="btn-ghost" onClick={() => onClose()}>
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="btn-confirm"
-              disabled={!code.trim() || loading}
-            >
+            <button type="button" className="btn-ghost" onClick={() => onClose()}>Cancel</button>
+            <button type="submit" className="btn-confirm" disabled={!code.trim() || loading}>
               {loading ? 'Joining…' : 'Join Server'}
             </button>
           </div>

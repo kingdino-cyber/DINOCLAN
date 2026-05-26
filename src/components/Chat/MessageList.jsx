@@ -61,6 +61,8 @@ export default function MessageList({ serverId, channelId, channelName }) {
           message={msg}
           isFirst={i === 0}
           prevMessage={messages[i - 1]}
+          serverId={serverId}
+          channelId={channelId}
         />
       ))}
       <div ref={bottomRef} />
