@@ -1033,6 +1033,132 @@ html, body, #root {
 .call-decline-btn { background: var(--danger); }
 .call-accept-btn:hover, .call-decline-btn:hover { transform: scale(1.12); filter: brightness(1.15); }
 
+/* ── Dino join-code system ────────────────────────────────────────────────── */
+
+/* Displayed after server creation */
+.dino-code-display {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin: 12px 0 8px;
+}
+.dino-code-emoji {
+  font-size: 36px;
+  background: var(--bg-tertiary);
+  border: 2px solid #2a4a2a;
+  border-radius: 10px;
+  width: 56px; height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: codePopIn .25s ease backwards;
+}
+.dino-code-emoji:nth-child(1) { animation-delay: .05s; }
+.dino-code-emoji:nth-child(2) { animation-delay: .10s; }
+.dino-code-emoji:nth-child(3) { animation-delay: .15s; }
+.dino-code-emoji:nth-child(4) { animation-delay: .20s; }
+@keyframes codePopIn {
+  from { opacity: 0; transform: scale(.5) rotate(-10deg); }
+  to   { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+.dino-code-copy-btn {
+  display: block;
+  margin: 8px auto 0;
+  background: var(--bg-modifier);
+  border: 1px solid #2a4a2a;
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 6px 16px;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.dino-code-copy-btn:hover { background: var(--bg-hover); color: var(--header-primary); }
+
+/* Join server modal */
+.join-server-modal { max-width: 380px; }
+
+/* Slot display */
+.dino-code-slots {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.dino-code-slot {
+  width: 54px; height: 54px;
+  border-radius: 10px;
+  background: var(--bg-tertiary);
+  border: 2px solid #2a4a2a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  transition: border-color .15s, transform .1s;
+}
+.dino-code-slot.active {
+  border-color: var(--accent);
+  animation: slotPulse 1s ease infinite;
+}
+.dino-code-slot.filled {
+  border-color: #3a6a3a;
+  animation: codePopIn .15s ease;
+}
+@keyframes slotPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(90,158,68,.4); }
+  50%       { box-shadow: 0 0 0 5px rgba(90,158,68,0); }
+}
+
+.dino-slot-back {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background .1s, color .1s;
+  margin-left: 4px;
+}
+.dino-slot-back:hover { background: var(--bg-hover); color: var(--header-primary); }
+
+/* Emoji picker */
+.dino-emoji-picker {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.dino-pick-btn {
+  font-size: 30px;
+  background: var(--bg-tertiary);
+  border: 2px solid transparent;
+  border-radius: 10px;
+  padding: 10px 0;
+  cursor: pointer;
+  transition: background .12s, border-color .12s, transform .1s;
+  line-height: 1;
+}
+.dino-pick-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  transform: scale(1.12);
+}
+.dino-pick-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* Join code shown in channel sidebar header */
+.invite-btn {
+  font-size: 15px;
+  letter-spacing: 1px;
+  padding: 3px 8px !important;
+  min-width: 32px;
+  border-radius: 6px;
+  transition: background .15s;
+}
+.invite-btn:hover { background: var(--bg-hover); }
+
 /* Empty state */
 .empty-state {
   flex: 1;

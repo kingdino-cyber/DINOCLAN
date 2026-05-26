@@ -75,7 +75,8 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
   }
 
   function handleInvite() {
-    navigator.clipboard.writeText(server.id).then(() => {
+    const code = server.joinCode || server.id
+    navigator.clipboard.writeText(code).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
@@ -109,15 +110,13 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
           </div>
           <h2 style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{server.name}</h2>
         </div>
-        {canAdmin && (
-          <button
-            className="invite-btn"
-            onClick={handleInvite}
-            title="Copy invite code"
-          >
-            {copied ? '✓' : '🔗'}
-          </button>
-        )}
+        <button
+          className="invite-btn"
+          onClick={handleInvite}
+          title={server.joinCode ? `Join code: ${server.joinCode} — click to copy` : 'Copy server ID'}
+        >
+          {copied ? '✓' : (server.joinCode ? server.joinCode : '🔗')}
+        </button>
         <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleServerPhoto} />
       </div>
 
