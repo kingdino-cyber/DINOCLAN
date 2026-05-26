@@ -6,6 +6,8 @@ import {
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import { isOperator } from '../../utils/admin'
+import { useCall } from '../../contexts/CallContext'
+import { playMessageSound } from '../../utils/sounds'
 import Avatar from './Avatar'
 import { format, isToday, isYesterday } from 'date-fns'
 
@@ -46,6 +48,7 @@ function compressImage(file) {
 
 export default function DirectMessageView({ otherUid, onClose }) {
   const { currentUser } = useAuth()
+  const { startDMCall, activeCall } = useCall()
   const [otherUser, setOtherUser] = useState(null)
   const [myData, setMyData] = useState(null)
   const [messages, setMessages] = useState([])
@@ -56,6 +59,7 @@ export default function DirectMessageView({ otherUid, onClose }) {
   const textareaRef = useRef(null)
   const fileRef = useRef(null)
   const isFirstLoad = useRef(true)
+  const prevCountRef = useRef(0)
 
   const dmId = getDmId(currentUser.uid, otherUid)
 
@@ -85,11 +89,18 @@ export default function DirectMessageView({ otherUid, onClose }) {
       limit(100),
     )
     const unsub = onSnapshot(q, snap => {
-      setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+      const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      setMessages(msgs)
       if (isFirstLoad.current) {
         isFirstLoad.current = false
+        prevCountRef.current = msgs.length
         setTimeout(() => bottomRef.current?.scrollIntoView(), 50)
       } else {
+        if (msgs.length > prevCountRef.current) {
+          const newest = msgs[msgs.length - 1]
+          if (newest?.uid && newest.uid !== currentUser?.uid) playMessageSound()
+        }
+        prevCountRef.current = msgs.length
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
       }
     })
@@ -161,6 +172,15 @@ export default function DirectMessageView({ otherUid, onClose }) {
         {otherUser && <Avatar user={otherUser} size={32} showStatus />}
         <span className="dm-header-name">{otherUser?.displayName || '...'}</span>
         <span className="dm-header-status">{otherUser?.status || 'offline'}</span>
+        <div style={{ flex: 1 }} />
+        <button
+          className="dm-call-btn"
+          onClick={() => startDMCall(otherUid, otherUser?.displayName || 'them')}
+          disabled={!!activeCall}
+          title={activeCall ? 'Already in a call' : `Call ${otherUser?.displayName}`}
+        >
+          📞
+        </button>
       </div>
 
       {/* Messages */}

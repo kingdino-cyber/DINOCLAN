@@ -3,12 +3,16 @@ import {
   collection, query, orderBy, limit, onSnapshot,
 } from 'firebase/firestore'
 import { db } from '../../firebase'
+import { useAuth } from '../../contexts/AuthContext'
+import { playMessageSound } from '../../utils/sounds'
 import Message from './Message'
 
 export default function MessageList({ serverId, channelId, channelName }) {
+  const { currentUser } = useAuth()
   const [messages, setMessages] = useState([])
   const bottomRef = useRef(null)
   const isFirstLoad = useRef(true)
+  const prevCountRef = useRef(0)
 
   useEffect(() => {
     if (!serverId || !channelId) return
@@ -26,8 +30,17 @@ export default function MessageList({ serverId, channelId, channelName }) {
       setMessages(msgs)
       if (isFirstLoad.current) {
         isFirstLoad.current = false
+        prevCountRef.current = msgs.length
         setTimeout(() => bottomRef.current?.scrollIntoView(), 50)
       } else {
+        // Play bing only for new messages from other users
+        if (msgs.length > prevCountRef.current) {
+          const newest = msgs[msgs.length - 1]
+          if (newest?.uid && newest.uid !== currentUser?.uid) {
+            playMessageSound()
+          }
+        }
+        prevCountRef.current = msgs.length
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
       }
     })

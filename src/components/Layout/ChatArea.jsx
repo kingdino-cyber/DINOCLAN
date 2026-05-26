@@ -4,9 +4,11 @@ import { db } from '../../firebase'
 import MessageList from '../Chat/MessageList'
 import MessageInput from '../Chat/MessageInput'
 import MembersSidebar from './MembersSidebar'
+import { useCall } from '../../contexts/CallContext'
 
 export default function ChatArea({ server, channelId }) {
   const [channel, setChannel] = useState(null)
+  const { startServerCall, activeCall } = useCall()
 
   useEffect(() => {
     if (!server?.id || !channelId) { setChannel(null); return }
@@ -38,6 +40,15 @@ export default function ChatArea({ server, channelId }) {
           {server.type === 'viewing' && (
             <span className="viewing-badge" title="Viewing server — only permitted members can post">👁️ Viewing</span>
           )}
+          <div style={{ flex: 1 }} />
+          <button
+            className="voice-call-btn"
+            onClick={() => startServerCall(server.id, server.name, channelId, channel.name)}
+            disabled={!!activeCall}
+            title={activeCall ? 'Already in a call' : `Start voice call in #${channel.name}`}
+          >
+            🔊 {activeCall?.channelId === channelId ? 'In Call' : 'Voice'}
+          </button>
         </div>
 
         <div className="messages-container">

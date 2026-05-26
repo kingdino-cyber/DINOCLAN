@@ -8,6 +8,8 @@ import DinoDecorations from '../DinoDecorations'
 import FriendsPanel from '../Friends/FriendsPanel'
 import HomeServersPanel from './HomeServersPanel'
 import DirectMessageView from '../Chat/DirectMessageView'
+import CallUI from '../Call/CallUI'
+import IncomingCallBanner from '../Call/IncomingCallBanner'
 
 export default function MainLayout() {
   const [activeServerId, setActiveServerId] = useState(null)
@@ -47,6 +49,8 @@ export default function MainLayout() {
   return (
     <div className="app-layout">
       <DinoDecorations />
+      <IncomingCallBanner />
+      <CallUI />
       <ServerSidebar
         activeServerId={activeServerId}
         onSelectServer={handleSelectServer}
