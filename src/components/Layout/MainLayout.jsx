@@ -7,11 +7,13 @@ import ChatArea from './ChatArea'
 import DinoDecorations from '../DinoDecorations'
 import FriendsPanel from '../Friends/FriendsPanel'
 import HomeServersPanel from './HomeServersPanel'
+import DirectMessageView from '../Chat/DirectMessageView'
 
 export default function MainLayout() {
   const [activeServerId, setActiveServerId] = useState(null)
   const [activeServer, setActiveServer] = useState(null)
   const [activeChannelId, setActiveChannelId] = useState(null)
+  const [activeDmUid, setActiveDmUid] = useState(null)
 
   useEffect(() => {
     if (!activeServerId) { setActiveServer(null); setActiveChannelId(null); return }
@@ -25,6 +27,7 @@ export default function MainLayout() {
   async function handleSelectServer(serverId) {
     setActiveServerId(serverId)
     setActiveChannelId(null)
+    setActiveDmUid(null)
     if (serverId) {
       const snap = await getDocs(
         query(collection(db, 'servers', serverId, 'channels'), orderBy('position', 'asc'))
@@ -34,6 +37,11 @@ export default function MainLayout() {
         setActiveChannelId(general.id)
       }
     }
+  }
+
+  function handleStartDM(uid) {
+    setActiveDmUid(uid)
+    setActiveServerId(null)
   }
 
   return (
@@ -47,7 +55,14 @@ export default function MainLayout() {
       {!activeServerId ? (
         <>
           <HomeServersPanel onSelectServer={handleSelectServer} />
-          <FriendsPanel />
+          {activeDmUid ? (
+            <DirectMessageView
+              otherUid={activeDmUid}
+              onClose={() => setActiveDmUid(null)}
+            />
+          ) : (
+            <FriendsPanel onStartDM={handleStartDM} />
+          )}
         </>
       ) : (
         <>

@@ -7,7 +7,7 @@ import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import Avatar from '../Chat/Avatar'
 
-function FriendRow({ uid }) {
+function FriendRow({ uid, onStartDM }) {
   const [user, setUser] = useState(null)
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'users', uid), snap => {
@@ -17,17 +17,23 @@ function FriendRow({ uid }) {
   }, [uid])
   if (!user) return null
   return (
-    <div className="member-item" style={{ padding: '8px 12px' }}>
+    <div
+      className="member-item friend-row-clickable"
+      style={{ padding: '8px 12px' }}
+      onClick={() => onStartDM(uid)}
+      title={`Message ${user.displayName}`}
+    >
       <Avatar user={user} size={36} showStatus />
-      <div>
+      <div style={{ flex: 1 }}>
         <div style={{ color: 'var(--header-primary)', fontSize: 14, fontWeight: 600 }}>{user.displayName}</div>
         <div style={{ color: 'var(--text-muted)', fontSize: 12, textTransform: 'capitalize' }}>{user.status || 'offline'}</div>
       </div>
+      <span style={{ fontSize: 18, opacity: 0.4 }}>💬</span>
     </div>
   )
 }
 
-export default function FriendsPanel() {
+export default function FriendsPanel({ onStartDM }) {
   const { currentUser } = useAuth()
   const [tab, setTab] = useState('all')
   const [requests, setRequests] = useState([])
@@ -156,7 +162,7 @@ export default function FriendsPanel() {
           <>
             {friends.length === 0
               ? <div className="friends-empty"><span>🦕</span><p>No friends yet — add some dinos!</p></div>
-              : friends.map(uid => <FriendRow key={uid} uid={uid} />)
+              : friends.map(uid => <FriendRow key={uid} uid={uid} onStartDM={onStartDM} />)
             }
           </>
         )}
