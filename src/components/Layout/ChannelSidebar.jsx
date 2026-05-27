@@ -123,7 +123,9 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
       <div className="channel-list">
         <div className="channel-category">
           <span>Text Channels</span>
-          <button onClick={() => setShowCreate(true)} title="Create channel">+</button>
+          {canAdmin && (
+            <button onClick={() => setShowCreate(true)} title="Create channel">+</button>
+          )}
         </div>
 
         {channels.map(ch => (
