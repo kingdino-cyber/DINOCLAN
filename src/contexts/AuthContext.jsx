@@ -46,6 +46,32 @@ export function AuthProvider({ children }) {
     return signOut(auth)
   }
 
+  // Mark user offline the moment they close/leave the tab
+  useEffect(() => {
+    if (!currentUser) return
+
+    const userRef = doc(db, 'users', currentUser.uid)
+
+    const goOffline = () =>
+      updateDoc(userRef, { status: 'offline' }).catch(() => {})
+
+    const goOnline = () =>
+      updateDoc(userRef, { status: 'online' }).catch(() => {})
+
+    // Tab/window closed or navigated away
+    window.addEventListener('beforeunload', goOffline)
+
+    // Tab hidden (switched away) → offline; tab visible again → online
+    const handleVisibility = () =>
+      document.hidden ? goOffline() : goOnline()
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      window.removeEventListener('beforeunload', goOffline)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [currentUser])
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, user => {
       setCurrentUser(user)
