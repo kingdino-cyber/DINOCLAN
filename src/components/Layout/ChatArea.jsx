@@ -6,7 +6,7 @@ import MessageInput from '../Chat/MessageInput'
 import MembersSidebar from './MembersSidebar'
 import { useCall } from '../../contexts/CallContext'
 
-export default function ChatArea({ server, channelId }) {
+export default function ChatArea({ server, channelId, onStartDM }) {
   const [channel, setChannel] = useState(null)
   const { startServerCall, activeCall } = useCall()
 
@@ -67,7 +67,7 @@ export default function ChatArea({ server, channelId }) {
         />
       </div>
 
-      <MembersSidebar serverId={server.id} server={server} memberIds={server.members || []} />
+      <MembersSidebar serverId={server.id} server={server} memberIds={server.members || []} onStartDM={onStartDM} />
     </>
   )
 }

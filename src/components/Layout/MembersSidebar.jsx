@@ -2,13 +2,11 @@ import { useEffect, useState } from 'react'
 import { doc, onSnapshot, updateDoc, arrayRemove, arrayUnion } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
-import { useProfile } from '../../contexts/ProfileContext'
 import { isAdmin, isOperator } from '../../utils/admin'
 import Avatar from '../Chat/Avatar'
 
-function MemberRow({ uid, serverId, server, canKick, isViewingServer, isHost }) {
+function MemberRow({ uid, serverId, server, canKick, isViewingServer, isHost, onStartDM }) {
   const { currentUser } = useAuth()
-  const { openProfile } = useProfile()
   const [user, setUser] = useState(null)
   const [action, setAction] = useState(null)
 
@@ -56,9 +54,14 @@ function MemberRow({ uid, serverId, server, canKick, isViewingServer, isHost }) 
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span
               className="member-name"
-              style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }}
-              onClick={() => openProfile(uid)}
-              title={`View ${user.displayName}'s profile`}
+              style={{
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                cursor: isSelf ? 'default' : 'pointer',
+                textDecoration: isSelf ? 'none' : 'underline',
+                textUnderlineOffset: 3,
+              }}
+              onClick={() => { if (!isSelf && onStartDM) onStartDM(uid) }}
+              title={isSelf ? '' : `Message ${user.displayName}`}
             >
               {user.displayName}
             </span>
@@ -106,7 +109,7 @@ function MemberRow({ uid, serverId, server, canKick, isViewingServer, isHost }) 
   )
 }
 
-export default function MembersSidebar({ serverId, server, memberIds }) {
+export default function MembersSidebar({ serverId, server, memberIds, onStartDM }) {
   const { currentUser } = useAuth()
   const canKick = isAdmin(currentUser, server)
   const isViewingServer = server?.type === 'viewing'
@@ -126,6 +129,7 @@ export default function MembersSidebar({ serverId, server, memberIds }) {
           canKick={canKick}
           isViewingServer={isViewingServer}
           isHost={isHost}
+          onStartDM={onStartDM}
         />
       ))}
     </div>

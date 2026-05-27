@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { doc, onSnapshot, collection, query, orderBy, getDocs } from 'firebase/firestore'
 import { db } from '../../firebase'
 import ServerSidebar from './ServerSidebar'
@@ -16,6 +17,15 @@ export default function MainLayout() {
   const [activeServer, setActiveServer] = useState(null)
   const [activeChannelId, setActiveChannelId] = useState(null)
   const [activeDmUid, setActiveDmUid] = useState(null)
+
+  // Support navigating here from ProfilePage "Send Message" button
+  const location = useLocation()
+  useEffect(() => {
+    if (location.state?.dmUid) {
+      setActiveDmUid(location.state.dmUid)
+      setActiveServerId(null)
+    }
+  }, [location.state])
 
   useEffect(() => {
     if (!activeServerId) { setActiveServer(null); setActiveChannelId(null); return }
@@ -78,6 +88,7 @@ export default function MainLayout() {
           <ChatArea
             server={activeServer}
             channelId={activeChannelId}
+            onStartDM={handleStartDM}
           />
         </>
       )}

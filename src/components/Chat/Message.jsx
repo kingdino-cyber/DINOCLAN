@@ -1,9 +1,9 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { format, isToday, isYesterday } from 'date-fns'
 import { doc, updateDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
-import { useProfile } from '../../contexts/ProfileContext'
 import { isAdmin } from '../../utils/admin'
 import Avatar from './Avatar'
 
@@ -52,7 +52,7 @@ function MessageMenu({ message, serverId, channelId, onClose }) {
 
 export default function Message({ message, isFirst, prevMessage, serverId, channelId }) {
   const [showMenu, setShowMenu] = useState(false)
-  const { openProfile } = useProfile()
+  const navigate = useNavigate()
 
   const sameAuthor = !isFirst &&
     prevMessage?.uid === message.uid &&
@@ -73,6 +73,11 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
   function handleClick(e) {
     e.stopPropagation()
     setShowMenu(m => !m)
+  }
+
+  function handleAuthorClick(e) {
+    e.stopPropagation()
+    navigate(`/app/profile/${message.uid}`)
   }
 
   const menuEl = showMenu && (
@@ -117,8 +122,8 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
           {message.isAdmin && <span className="admin-tag">ADMIN</span>}
           <span
             className="msg-author"
-            style={{ cursor: 'pointer' }}
-            onClick={e => { e.stopPropagation(); openProfile(message.uid) }}
+            style={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}
+            onClick={handleAuthorClick}
             title={`View ${message.displayName}'s profile`}
           >
             {message.displayName}
