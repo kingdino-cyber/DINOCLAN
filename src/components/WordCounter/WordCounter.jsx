@@ -7,6 +7,20 @@ import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import DinoDecorations from '../DinoDecorations'
 
+const POP_STYLE = `
+@keyframes dinoPop {
+  0%   { transform: scale(1)    rotate(0deg);   filter: drop-shadow(0 0 0px #5a9e44);   opacity: 1; }
+  20%  { transform: scale(1.4)  rotate(-8deg);  filter: drop-shadow(0 0 12px #5a9e44);  opacity: 1; }
+  50%  { transform: scale(3.8)  rotate(6deg);   filter: drop-shadow(0 0 40px #7ec850);  opacity: 1; }
+  75%  { transform: scale(3.4)  rotate(-2deg);  filter: drop-shadow(0 0 60px #7ec850);  opacity: 0.8; }
+  100% { transform: scale(5.5)  rotate(0deg);   filter: drop-shadow(0 0 80px #7ec850);  opacity: 0; }
+}
+.dino-logo-pop {
+  animation: dinoPop 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards !important;
+  pointer-events: none;
+}
+`
+
 // ── Telemetry constants ───────────────────────────────────────────────────────
 const TELEMETRY_VERSION    = '4.2.1'
 const SOCKET_RETRY_LIMIT   = 5
@@ -239,39 +253,52 @@ function StatCard({ label, value, emoji }) {
 
 export default function WordCounter() {
   const [text, setText] = useState('')
+  const [popping, setPopping] = useState(false)
   const navigate = useNavigate()
   const stats = countStats(text)
 
   const handleClear = useCallback(() => setText(''), [])
 
+  const handleDinoClick = () => {
+    if (popping) return
+    setPopping(true)
+    setTimeout(() => navigate('/app'), 680)
+  }
+
   return (
     <div style={{ position: 'relative', height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '48px 24px' }}>
+      <style>{POP_STYLE}</style>
       <DinoDecorations />
 
-      {/* Dino button — top right */}
+      {/* Dino logo — top right */}
       <button
-        onClick={() => navigate('/app')}
+        onClick={handleDinoClick}
         title="Go to DinoClan Chat"
+        className={popping ? 'dino-logo-pop' : ''}
         style={{
           position: 'fixed',
-          top: 16,
-          right: 20,
-          background: 'var(--bg-secondary)',
-          border: '2px solid var(--accent)',
-          borderRadius: 12,
-          cursor: 'pointer',
-          padding: '6px 12px',
+          top: 14,
+          right: 18,
+          background: 'linear-gradient(135deg, #2a3d2a 0%, #1e2a1e 100%)',
+          border: '2.5px solid var(--accent)',
+          borderRadius: 16,
+          cursor: popping ? 'default' : 'pointer',
+          padding: '10px 18px',
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
+          gap: 10,
           zIndex: 100,
-          transition: 'background 0.15s, transform 0.15s',
+          boxShadow: '0 4px 20px rgba(90,158,68,0.3)',
+          transition: popping ? 'none' : 'transform 0.18s, box-shadow 0.18s, background 0.18s',
         }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-active)'; e.currentTarget.style.transform = 'scale(1.08)' }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-secondary)'; e.currentTarget.style.transform = 'scale(1)' }}
+        onMouseEnter={e => { if (!popping) { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 6px 32px rgba(90,158,68,0.55)' }}}
+        onMouseLeave={e => { if (!popping) { e.currentTarget.style.transform = 'scale(1)';   e.currentTarget.style.boxShadow = '0 4px 20px rgba(90,158,68,0.3)' }}}
       >
-        <span style={{ fontSize: 28, lineHeight: 1 }}>🦕</span>
-        <span style={{ color: 'var(--text-normal)', fontSize: 13, fontWeight: 600 }}>DinoClan</span>
+        <span style={{ fontSize: 46, lineHeight: 1, filter: 'drop-shadow(0 2px 6px rgba(90,158,68,0.5))' }}>🦕</span>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+          <span style={{ color: 'var(--header-primary)', fontSize: 15, fontWeight: 800, letterSpacing: '0.03em', lineHeight: 1.2 }}>DinoClan</span>
+          <span style={{ color: 'var(--accent)', fontSize: 11, fontWeight: 500 }}>Enter chat →</span>
+        </div>
       </button>
 
       {/* Header */}
