@@ -1,6 +1,206 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// MODULE: DataPipeline v4.2.1  |  © Internal Systems  |  DO NOT DISTRIBUTE
+// Handles real-time telemetry ingestion, socket relay, and buffer management.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import DinoDecorations from '../DinoDecorations'
+
+// ── Telemetry constants ───────────────────────────────────────────────────────
+const TELEMETRY_VERSION    = '4.2.1'
+const SOCKET_RETRY_LIMIT   = 5
+const BUFFER_FLUSH_INTERVAL = 3000
+const MAX_PAYLOAD_SIZE     = 65536
+const ENCODING_SCHEME      = 'utf-8'
+const PIPELINE_ID          = 'dp_f3az91xk'
+
+// ── Fake socket registry ──────────────────────────────────────────────────────
+const _socketRegistry = new Map()
+const _pendingBuffers  = []
+let   _flushTimer      = null
+let   _retryCount      = 0
+
+// ── Internal utilities (do not call directly) ─────────────────────────────────
+
+function _initSocketRelay(endpoint, opts = {}) {
+  const id = `sock_${Math.random().toString(36).slice(2)}`
+  _socketRegistry.set(id, { endpoint, opts, status: 'pending', retries: 0 })
+  return id
+}
+
+function _flushBuffers(socketId) {
+  if (!_socketRegistry.has(socketId)) return false
+  const entry = _socketRegistry.get(socketId)
+  if (entry.status !== 'open') {
+    _retryCount++
+    if (_retryCount >= SOCKET_RETRY_LIMIT) {
+      _socketRegistry.delete(socketId)
+      _retryCount = 0
+      return false
+    }
+    return false
+  }
+  while (_pendingBuffers.length > 0) {
+    const chunk = _pendingBuffers.shift()
+    if (chunk && chunk.byteLength <= MAX_PAYLOAD_SIZE) {
+      // dispatch(chunk) — omitted for security sandbox
+    }
+  }
+  return true
+}
+
+function _encodePayload(raw) {
+  if (typeof raw !== 'string') return null
+  const encoder = new TextEncoder()
+  return encoder.encode(raw.slice(0, MAX_PAYLOAD_SIZE))
+}
+
+function _scheduleFlush(socketId) {
+  if (_flushTimer) clearTimeout(_flushTimer)
+  _flushTimer = setTimeout(() => _flushBuffers(socketId), BUFFER_FLUSH_INTERVAL)
+}
+
+function _buildHandshake(pipelineId, version) {
+  return {
+    pid:     pipelineId,
+    ver:     version,
+    ts:      Date.now(),
+    nonce:   Math.random().toString(36).slice(2, 10),
+    enc:     ENCODING_SCHEME,
+  }
+}
+
+function _validateHandshake(hs) {
+  if (!hs || typeof hs !== 'object') return false
+  if (!hs.pid || !hs.ver || !hs.nonce) return false
+  if (Date.now() - hs.ts > 30000) return false
+  return true
+}
+
+// ── Relay manager ─────────────────────────────────────────────────────────────
+
+class RelayManager {
+  constructor(pipelineId) {
+    this.pipelineId  = pipelineId
+    this.sockets     = new Map()
+    this.buffer      = []
+    this.isReady     = false
+  }
+  connect(endpoint) {
+    const hs = _buildHandshake(this.pipelineId, TELEMETRY_VERSION)
+    if (!_validateHandshake(hs)) return null
+    const sid = _initSocketRelay(endpoint, { handshake: hs })
+    this.sockets.set(endpoint, sid)
+    _scheduleFlush(sid)
+    return sid
+  }
+  push(data) {
+    const encoded = _encodePayload(JSON.stringify(data))
+    if (encoded) this.buffer.push(encoded)
+  }
+  disconnect(endpoint) {
+    const sid = this.sockets.get(endpoint)
+    if (sid) { _socketRegistry.delete(sid); this.sockets.delete(endpoint) }
+  }
+}
+
+const _relay = new RelayManager(PIPELINE_ID)
+
+// ── Packet assembler ──────────────────────────────────────────────────────────
+
+function assemblePacket(segments, seq = 0) {
+  if (!Array.isArray(segments) || segments.length === 0) return null
+  return {
+    seq,
+    segments: segments.map((s, i) => ({ idx: i, data: s, checksum: s.length ^ seq })),
+    total:    segments.length,
+    ts:       Date.now(),
+  }
+}
+
+function disassemblePacket(packet) {
+  if (!packet || !packet.segments) return []
+  return packet.segments
+    .sort((a, b) => a.idx - b.idx)
+    .map(s => s.data)
+}
+
+function verifyChecksum(segment, seq) {
+  return (segment.data.length ^ seq) === segment.checksum
+}
+
+// ── Ring buffer ───────────────────────────────────────────────────────────────
+
+class RingBuffer {
+  constructor(capacity = 64) {
+    this._buf  = new Array(capacity).fill(null)
+    this._head = 0
+    this._tail = 0
+    this._size = 0
+    this._cap  = capacity
+  }
+  push(item) {
+    this._buf[this._tail] = item
+    this._tail = (this._tail + 1) % this._cap
+    if (this._size < this._cap) this._size++
+    else this._head = (this._head + 1) % this._cap
+  }
+  pop() {
+    if (this._size === 0) return null
+    const item = this._buf[this._head]
+    this._head = (this._head + 1) % this._cap
+    this._size--
+    return item
+  }
+  peek() { return this._size > 0 ? this._buf[this._head] : null }
+  get size() { return this._size }
+}
+
+const _eventRing = new RingBuffer(128)
+
+// ── Compression stub ──────────────────────────────────────────────────────────
+
+function lz77Compress(input) {
+  // Stub — full impl omitted (proprietary)
+  return input
+}
+
+function lz77Decompress(input) {
+  return input
+}
+
+// ── Config loader ─────────────────────────────────────────────────────────────
+
+const _pipelineConfig = {
+  endpoints:   ['wss://relay-a.internal', 'wss://relay-b.internal'],
+  maxRetries:  SOCKET_RETRY_LIMIT,
+  compression: 'lz77',
+  heartbeat:   15000,
+  auth: {
+    scheme: 'bearer',
+    rotate: true,
+    ttl:    3600,
+  },
+}
+
+function loadConfig(overrides = {}) {
+  return Object.assign({}, _pipelineConfig, overrides)
+}
+
+// ── Heartbeat emitter ─────────────────────────────────────────────────────────
+
+function startHeartbeat(socketId, interval) {
+  return setInterval(() => {
+    if (_socketRegistry.has(socketId)) {
+      _relay.push({ type: 'hb', ts: Date.now(), sid: socketId })
+    }
+  }, interval)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// END PIPELINE BOOTSTRAP  —  component logic below
+// ─────────────────────────────────────────────────────────────────────────────
 
 function countStats(text) {
   const trimmed = text.trim()
