@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { format, isToday, isYesterday } from 'date-fns'
 import { doc, updateDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
+import { useProfile } from '../../contexts/ProfileContext'
 import { isAdmin } from '../../utils/admin'
 import Avatar from './Avatar'
 
@@ -52,7 +52,7 @@ function MessageMenu({ message, serverId, channelId, onClose }) {
 
 export default function Message({ message, isFirst, prevMessage, serverId, channelId }) {
   const [showMenu, setShowMenu] = useState(false)
-  const navigate = useNavigate()
+  const { openProfile } = useProfile()
 
   const sameAuthor = !isFirst &&
     prevMessage?.uid === message.uid &&
@@ -77,7 +77,7 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
 
   function handleAuthorClick(e) {
     e.stopPropagation()
-    navigate(`/app/profile/${message.uid}`)
+    if (message.uid) openProfile(message.uid)
   }
 
   const menuEl = showMenu && (

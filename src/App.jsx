@@ -5,7 +5,6 @@ import Login from './components/Auth/Login'
 import Register from './components/Auth/Register'
 import MainLayout from './components/Layout/MainLayout'
 import WordCounter from './components/WordCounter/WordCounter'
-import ProfilePage from './components/ProfilePage'
 
 function PrivateRoute({ children }) {
   const { currentUser } = useAuth()
@@ -23,11 +22,10 @@ export default function App() {
       <BrowserRouter>
         <CallProvider>
           <Routes>
-            <Route path="/" element={<WordCounter />} />
-            <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-            <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-            <Route path="/app/profile/:uid" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
-            <Route path="/app/*" element={<PrivateRoute><MainLayout /></PrivateRoute>} />
+            <Route path="/"          element={<WordCounter />} />
+            <Route path="/login"     element={<PublicRoute><Login /></PublicRoute>} />
+            <Route path="/register"  element={<PublicRoute><Register /></PublicRoute>} />
+            <Route path="/app/*"     element={<PrivateRoute><MainLayout /></PrivateRoute>} />
           </Routes>
         </CallProvider>
       </BrowserRouter>

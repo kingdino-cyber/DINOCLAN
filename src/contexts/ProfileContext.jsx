@@ -1,17 +1,12 @@
 import { createContext, useContext, useState } from 'react'
-import UserProfileModal from '../components/Modals/UserProfileModal'
 
 const ProfileContext = createContext(null)
 
 export function ProfileProvider({ children }) {
-  const [profileUid, setProfileUid] = useState(null)
-
+  const [uid, setUid] = useState(null)
   return (
-    <ProfileContext.Provider value={{ openProfile: setProfileUid }}>
+    <ProfileContext.Provider value={{ openProfile: setUid, closeProfile: () => setUid(null), profileUid: uid }}>
       {children}
-      {profileUid && (
-        <UserProfileModal uid={profileUid} onClose={() => setProfileUid(null)} />
-      )}
     </ProfileContext.Provider>
   )
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { doc, onSnapshot, collection, query, orderBy, getDocs } from 'firebase/firestore'
 import { db } from '../../firebase'
+import { ProfileProvider } from '../../contexts/ProfileContext'
 import ServerSidebar from './ServerSidebar'
 import ChannelSidebar from './ChannelSidebar'
 import ChatArea from './ChatArea'
@@ -11,14 +12,14 @@ import HomeServersPanel from './HomeServersPanel'
 import DirectMessageView from '../Chat/DirectMessageView'
 import CallUI from '../Call/CallUI'
 import IncomingCallBanner from '../Call/IncomingCallBanner'
+import UserProfileModal from '../Modals/UserProfileModal'
 
 export default function MainLayout() {
   const [activeServerId, setActiveServerId] = useState(null)
-  const [activeServer, setActiveServer] = useState(null)
+  const [activeServer, setActiveServer]     = useState(null)
   const [activeChannelId, setActiveChannelId] = useState(null)
-  const [activeDmUid, setActiveDmUid] = useState(null)
+  const [activeDmUid, setActiveDmUid]       = useState(null)
 
-  // Support navigating here from ProfilePage "Send Message" button
   const location = useLocation()
   useEffect(() => {
     if (location.state?.dmUid) {
@@ -57,41 +58,47 @@ export default function MainLayout() {
   }
 
   return (
-    <div className="app-layout">
-      <DinoDecorations />
-      <IncomingCallBanner />
-      <CallUI />
-      <ServerSidebar
-        activeServerId={activeServerId}
-        onSelectServer={handleSelectServer}
-      />
+    <ProfileProvider>
+      <div className="app-layout">
+        <DinoDecorations />
+        <IncomingCallBanner />
+        <CallUI />
 
-      {!activeServerId ? (
-        <>
-          <HomeServersPanel onSelectServer={handleSelectServer} />
-          {activeDmUid ? (
-            <DirectMessageView
-              otherUid={activeDmUid}
-              onClose={() => setActiveDmUid(null)}
+        {/* Profile panel lives here — has access to handleStartDM */}
+        <UserProfileModal onStartDM={handleStartDM} />
+
+        <ServerSidebar
+          activeServerId={activeServerId}
+          onSelectServer={handleSelectServer}
+        />
+
+        {!activeServerId ? (
+          <>
+            <HomeServersPanel onSelectServer={handleSelectServer} />
+            {activeDmUid ? (
+              <DirectMessageView
+                otherUid={activeDmUid}
+                onClose={() => setActiveDmUid(null)}
+              />
+            ) : (
+              <FriendsPanel onStartDM={handleStartDM} />
+            )}
+          </>
+        ) : (
+          <>
+            <ChannelSidebar
+              server={activeServer}
+              activeChannelId={activeChannelId}
+              onSelectChannel={setActiveChannelId}
             />
-          ) : (
-            <FriendsPanel onStartDM={handleStartDM} />
-          )}
-        </>
-      ) : (
-        <>
-          <ChannelSidebar
-            server={activeServer}
-            activeChannelId={activeChannelId}
-            onSelectChannel={setActiveChannelId}
-          />
-          <ChatArea
-            server={activeServer}
-            channelId={activeChannelId}
-            onStartDM={handleStartDM}
-          />
-        </>
-      )}
-    </div>
+            <ChatArea
+              server={activeServer}
+              channelId={activeChannelId}
+              onStartDM={handleStartDM}
+            />
+          </>
+        )}
+      </div>
+    </ProfileProvider>
   )
 }
