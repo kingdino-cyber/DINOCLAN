@@ -3,6 +3,7 @@ import { format, isToday, isYesterday } from 'date-fns'
 import { doc, updateDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
+import { useProfile } from '../../contexts/ProfileContext'
 import { isAdmin } from '../../utils/admin'
 import Avatar from './Avatar'
 
@@ -51,6 +52,7 @@ function MessageMenu({ message, serverId, channelId, onClose }) {
 
 export default function Message({ message, isFirst, prevMessage, serverId, channelId }) {
   const [showMenu, setShowMenu] = useState(false)
+  const { openProfile } = useProfile()
 
   const sameAuthor = !isFirst &&
     prevMessage?.uid === message.uid &&
@@ -113,7 +115,14 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
       <div className="msg-body">
         <div className="msg-header">
           {message.isAdmin && <span className="admin-tag">ADMIN</span>}
-          <span className="msg-author">{message.displayName}</span>
+          <span
+            className="msg-author"
+            style={{ cursor: 'pointer' }}
+            onClick={e => { e.stopPropagation(); openProfile(message.uid) }}
+            title={`View ${message.displayName}'s profile`}
+          >
+            {message.displayName}
+          </span>
           <span className="msg-ts">{formatTimestamp(message.createdAt)}</span>
         </div>
         {message.content && <p className="msg-content">{message.content}</p>}

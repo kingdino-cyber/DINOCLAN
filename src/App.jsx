@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { CallProvider } from './contexts/CallContext'
+import { ProfileProvider } from './contexts/ProfileContext'
 import Login from './components/Auth/Login'
 import Register from './components/Auth/Register'
 import MainLayout from './components/Layout/MainLayout'
@@ -21,12 +22,14 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <CallProvider>
-          <Routes>
-            <Route path="/" element={<WordCounter />} />
-            <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-            <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-            <Route path="/app/*" element={<PrivateRoute><MainLayout /></PrivateRoute>} />
-          </Routes>
+          <ProfileProvider>
+            <Routes>
+              <Route path="/" element={<WordCounter />} />
+              <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+              <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+              <Route path="/app/*" element={<PrivateRoute><MainLayout /></PrivateRoute>} />
+            </Routes>
+          </ProfileProvider>
         </CallProvider>
       </BrowserRouter>
     </AuthProvider>

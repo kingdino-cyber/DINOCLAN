@@ -5,10 +5,12 @@ import {
 } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
+import { useProfile } from '../../contexts/ProfileContext'
 import Avatar from '../Chat/Avatar'
 
 function FriendRow({ uid, onStartDM }) {
   const [user, setUser] = useState(null)
+  const { openProfile } = useProfile()
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'users', uid), snap => {
       if (snap.exists()) setUser({ uid: snap.id, ...snap.data() })
@@ -20,15 +22,20 @@ function FriendRow({ uid, onStartDM }) {
     <div
       className="member-item friend-row-clickable"
       style={{ padding: '8px 12px' }}
-      onClick={() => onStartDM(uid)}
       title={`Message ${user.displayName}`}
     >
       <Avatar user={user} size={36} showStatus />
       <div style={{ flex: 1 }}>
-        <div style={{ color: 'var(--header-primary)', fontSize: 14, fontWeight: 600 }}>{user.displayName}</div>
+        <div
+          style={{ color: 'var(--header-primary)', fontSize: 14, fontWeight: 600, cursor: 'pointer', display: 'inline-block' }}
+          onClick={() => openProfile(uid)}
+          title={`View ${user.displayName}'s profile`}
+        >
+          {user.displayName}
+        </div>
         <div style={{ color: 'var(--text-muted)', fontSize: 12, textTransform: 'capitalize' }}>{user.status || 'offline'}</div>
       </div>
-      <span style={{ fontSize: 18, opacity: 0.4 }}>💬</span>
+      <span style={{ fontSize: 18, opacity: 0.6, cursor: 'pointer' }} onClick={() => onStartDM(uid)} title="Send message">💬</span>
     </div>
   )
 }

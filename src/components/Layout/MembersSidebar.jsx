@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react'
 import { doc, onSnapshot, updateDoc, arrayRemove, arrayUnion } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
+import { useProfile } from '../../contexts/ProfileContext'
 import { isAdmin, isOperator } from '../../utils/admin'
 import Avatar from '../Chat/Avatar'
 
 function MemberRow({ uid, serverId, server, canKick, isViewingServer, isHost }) {
   const { currentUser } = useAuth()
+  const { openProfile } = useProfile()
   const [user, setUser] = useState(null)
   const [action, setAction] = useState(null)
 
@@ -52,7 +54,12 @@ function MemberRow({ uid, serverId, server, canKick, isViewingServer, isHost }) 
         <div style={{ minWidth: 0 }}>
           {isOp && <div className="member-admin-tag">ADMIN</div>}
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span className="member-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span
+              className="member-name"
+              style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }}
+              onClick={() => openProfile(uid)}
+              title={`View ${user.displayName}'s profile`}
+            >
               {user.displayName}
             </span>
             {isOwner && <span style={{ fontSize: 11, color: '#faa61a' }} title="Server Owner">👑</span>}
