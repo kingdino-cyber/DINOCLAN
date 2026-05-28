@@ -13,6 +13,7 @@ import DirectMessageView from '../Chat/DirectMessageView'
 import CallUI from '../Call/CallUI'
 import IncomingCallBanner from '../Call/IncomingCallBanner'
 import UserProfileModal from '../Modals/UserProfileModal'
+import NotificationToast from '../NotificationToast'
 
 export default function MainLayout() {
   const [activeServerId, setActiveServerId] = useState(null)
@@ -66,6 +67,9 @@ export default function MainLayout() {
 
         {/* Profile panel lives here — has access to handleStartDM */}
         <UserProfileModal onStartDM={handleStartDM} />
+
+        {/* DM notifications */}
+        <NotificationToast activeDmUid={activeDmUid} onStartDM={handleStartDM} />
 
         <ServerSidebar
           activeServerId={activeServerId}

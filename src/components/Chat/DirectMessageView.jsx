@@ -140,10 +140,11 @@ export default function DirectMessageView({ otherUid, onClose }) {
     setPendingImage(null)
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     try {
+      const senderName = myData?.displayName || currentUser.displayName || currentUser.email
       await addDoc(collection(db, 'dms', dmId, 'messages'), {
         content: content || '',
         uid: currentUser.uid,
-        displayName: myData?.displayName || currentUser.displayName || currentUser.email,
+        displayName: senderName,
         photoURL: myData?.photoURL || null,
         avatarEmoji: myData?.avatarEmoji || null,
         avatarBg: myData?.avatarBg || null,
@@ -151,6 +152,14 @@ export default function DirectMessageView({ otherUid, onClose }) {
         imageURL: imageToSend || null,
         createdAt: serverTimestamp(),
       })
+      // Write notification to recipient
+      addDoc(collection(db, 'users', otherUid, 'notifications'), {
+        fromUid: currentUser.uid,
+        fromName: senderName,
+        preview: content ? content.slice(0, 80) : '📷 Image',
+        createdAt: serverTimestamp(),
+        read: false,
+      }).catch(() => {})
     } catch (err) {
       console.error('DM send failed', err)
     } finally {
