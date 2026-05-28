@@ -23,7 +23,7 @@ export default function Register() {
       await register(email, password, displayName.trim())
     } catch (err) {
       console.error('Registration error:', err)
-      setError(`${err.code}: ${err.message}`)
+      setError(friendlyError(err.code))
     } finally {
       setLoading(false)
     }

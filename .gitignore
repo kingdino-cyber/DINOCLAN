@@ -2,3 +2,6 @@ node_modules
 dist
 .env
 .env.local
+# Firebase service account keys — never commit these
+scripts/serviceAccountKey.json
+*serviceAccount*.json
