@@ -1,5 +1,9 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { doc, onSnapshot } from 'firebase/firestore'
+import { db } from '../../firebase'
+import { useAuth } from '../../contexts/AuthContext'
 import { useCall } from '../../contexts/CallContext'
+import Avatar from '../Chat/Avatar'
 
 // Renders hidden <audio> elements to play remote streams
 function RemoteAudio({ streams }) {
@@ -33,12 +37,27 @@ function AudioElement({ stream }) {
   return <audio ref={ref} autoPlay playsInline style={{ display: 'none' }} />
 }
 
-function ParticipantBubble({ name, isYou, isMuted }) {
-  const initials = name ? name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : '?'
+// Fetches user data from Firestore and shows their real avatar
+function UserBubble({ uid, name, isYou, isMuted }) {
+  const [userData, setUserData] = useState(null)
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'users', uid), snap => {
+      if (snap.exists()) setUserData(snap.data())
+    })
+    return unsub
+  }, [uid])
+
+  const fakeUser = {
+    displayName: name,
+    photoURL:    userData?.photoURL    || null,
+    avatarEmoji: userData?.avatarEmoji || null,
+    avatarBg:    userData?.avatarBg    || null,
+  }
+
   return (
     <div className="call-participant">
-      <div className={`call-avatar ${isMuted && isYou ? 'muted' : ''}`}>
-        {initials}
+      <div className={`call-avatar-wrap ${isMuted && isYou ? 'muted' : ''}`}>
+        <Avatar user={fakeUser} size={40} />
         {isMuted && isYou && <span className="call-muted-icon">🔇</span>}
       </div>
       <div className="call-participant-name">{isYou ? `${name} (you)` : name}</div>
@@ -47,6 +66,7 @@ function ParticipantBubble({ name, isYou, isMuted }) {
 }
 
 export default function CallUI() {
+  const { currentUser } = useAuth()
   const { activeCall, remoteStreams, isMuted, endCall, toggleMute } = useCall()
   if (!activeCall) return null
 
@@ -72,11 +92,12 @@ export default function CallUI() {
 
         <div className="call-participants">
           {participants.map(p => (
-            <ParticipantBubble
+            <UserBubble
               key={p.uid}
+              uid={p.uid}
               name={p.name}
-              isYou={false}
-              isMuted={false}
+              isYou={p.uid === currentUser?.uid}
+              isMuted={p.uid === currentUser?.uid && isMuted}
             />
           ))}
         </div>

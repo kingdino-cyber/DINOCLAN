@@ -976,6 +976,17 @@ html, body, #root {
   color: var(--header-primary);
 }
 .call-avatar.muted { border-color: var(--danger); }
+
+/* Avatar wrapper for call UI (replaces old initials bubble) */
+.call-avatar-wrap {
+  position: relative;
+  border-radius: 50%;
+  border: 2px solid var(--success);
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.call-avatar-wrap.muted { border-color: var(--danger); }
+
 .call-muted-icon {
   position: absolute;
   bottom: -4px; right: -4px;
@@ -1935,3 +1946,37 @@ html, body, #root {
 
 /* Scrollbar within messages */
 .messages-container::-webkit-scrollbar { width: 6px; }
+
+/* ── Typing indicator (DM view) ── */
+@keyframes typingBounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30%           { transform: translateY(-5px); }
+}
+.dm-typing-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 16px 10px;
+}
+.dm-typing-bubble {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  background: var(--bg-secondary);
+  padding: 7px 10px;
+  border-radius: 12px;
+}
+.typing-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  animation: typingBounce 1.2s ease infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+.dm-typing-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
