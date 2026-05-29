@@ -5,6 +5,18 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useCall } from '../../contexts/CallContext'
 import Avatar from '../Chat/Avatar'
 
+// Single camera SVG — no double-emoji rendering issues
+function CamIcon({ on, size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      {on
+        ? <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
+        : <path d="M21 6.5l-4 4V7c0-.55-.45-1-1-1H9.82L21 17.18V6.5zM3.27 2L2 3.27 4.73 6H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.21 0 .39-.08.54-.18L19.73 21 21 19.73 3.27 2z"/>
+      }
+    </svg>
+  )
+}
+
 // Renders hidden <audio> elements to play remote streams
 function RemoteAudio({ streams }) {
   return (
@@ -64,6 +76,7 @@ export default function CallUI() {
     activeCall, remoteStreams,
     isMuted, toggleMute,
     hasVideo, toggleVideo,
+    isScreenSharing,
     endCall,
   } = useCall()
 
@@ -84,8 +97,8 @@ export default function CallUI() {
           <button className={`call-ctrl-btn-sm ${isMuted ? 'muted' : ''}`} onClick={toggleMute} title={isMuted ? 'Unmute' : 'Mute'}>
             {isMuted ? '🔇' : '🎤'}
           </button>
-          <button className={`call-ctrl-btn-sm ${hasVideo ? 'active' : ''}`} onClick={toggleVideo} title={hasVideo ? 'Camera off' : 'Camera on'}>
-            {hasVideo ? '📷' : '🚫📷'}
+          <button className={`call-ctrl-btn-sm ${hasVideo && !isScreenSharing ? 'active' : ''}`} onClick={toggleVideo} title={hasVideo ? 'Camera off' : 'Camera on'} disabled={isScreenSharing}>
+            <CamIcon on={hasVideo && !isScreenSharing} size={14} />
           </button>
           <button className="call-ctrl-btn-sm end-btn" onClick={endCall} title="Leave">📵</button>
         </div>
@@ -130,11 +143,12 @@ export default function CallUI() {
             {isMuted ? '🔇' : '🎤'}
           </button>
           <button
-            className={`call-ctrl-btn ${hasVideo ? 'active' : ''}`}
+            className={`call-ctrl-btn ${hasVideo && !isScreenSharing ? 'active' : ''}`}
             onClick={toggleVideo}
             title={hasVideo ? 'Camera off' : 'Camera on'}
+            disabled={isScreenSharing}
           >
-            {hasVideo ? '📷' : '🚫📷'}
+            <CamIcon on={hasVideo && !isScreenSharing} size={18} />
           </button>
           <button className="call-ctrl-btn end-btn" onClick={endCall} title="End call">
             📵

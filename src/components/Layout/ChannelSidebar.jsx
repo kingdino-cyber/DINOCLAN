@@ -100,9 +100,10 @@ function VoiceChannelItem({ ch, isActive, onClick, canAdmin, onDelete }) {
 // ── Main sidebar ──────────────────────────────────────────────────────────────
 export default function ChannelSidebar({ server, activeChannelId, onSelectChannel }) {
   const { currentUser } = useAuth()
-  const [channels,   setChannels]   = useState([])
-  const [showCreate, setShowCreate] = useState(false)
-  const [copied,     setCopied]     = useState(false)
+  const [channels,        setChannels]        = useState([])
+  const [showCreate,      setShowCreate]      = useState(false)
+  const [createType,      setCreateType]      = useState('text')
+  const [copied,          setCopied]          = useState(false)
   const fileRef = useRef(null)
 
   const canAdmin = isAdmin(currentUser, server)
@@ -194,7 +195,7 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
         <div className="channel-category">
           <span>Text Channels</span>
           {canAdmin && (
-            <button onClick={() => setShowCreate(true)} title="Create channel">+</button>
+            <button onClick={() => { setCreateType('text'); setShowCreate(true) }} title="Create text channel">+</button>
           )}
         </div>
 
@@ -223,7 +224,7 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
         <div className="channel-category" style={{ marginTop: 12 }}>
           <span>Voice Channels</span>
           {canAdmin && (
-            <button onClick={() => setShowCreate(true)} title="Create channel">+</button>
+            <button onClick={() => { setCreateType('voice'); setShowCreate(true) }} title="Create voice channel">+</button>
           )}
         </div>
 
@@ -247,7 +248,7 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
       <UserPanel />
 
       {showCreate && (
-        <CreateChannel serverId={server.id} onClose={handleChannelCreated} />
+        <CreateChannel serverId={server.id} defaultType={createType} onClose={handleChannelCreated} />
       )}
     </div>
   )

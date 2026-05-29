@@ -17,13 +17,14 @@ const ICE_SERVERS = [
 
 export function CallProvider({ children }) {
   const { currentUser } = useAuth()
-  const [activeCall, setActiveCall]   = useState(null)
-  const [incomingCall, setIncomingCall] = useState(null)
-  const [remoteStreams, setRemoteStreams] = useState({}) // { uid: MediaStream }
-  const [isMuted, setIsMuted]         = useState(false)
-  const [hasVideo, setHasVideo]       = useState(false)
-  const [localStream, setLocalStream] = useState(null)
-  const [callError, setCallError]     = useState('')
+  const [activeCall, setActiveCall]         = useState(null)
+  const [incomingCall, setIncomingCall]     = useState(null)
+  const [remoteStreams, setRemoteStreams]   = useState({}) // { uid: MediaStream }
+  const [isMuted, setIsMuted]               = useState(false)
+  const [hasVideo, setHasVideo]             = useState(false)
+  const [isScreenSharing, setIsScreenSharing] = useState(false)
+  const [localStream, setLocalStream]       = useState(null)
+  const [callError, setCallError]           = useState('')
 
   const peersRef        = useRef({})   // { uid: RTCPeerConnection }
   const localStreamRef  = useRef(null)
@@ -76,9 +77,73 @@ export function CallProvider({ children }) {
     if (!stream) return
     const tracks = stream.getVideoTracks()
     if (tracks.length === 0) return          // no camera on this device
+    if (isScreenSharing) return              // can't toggle camera while screen sharing
     const next = !tracks[0].enabled
     tracks.forEach(t => { t.enabled = next })
     setHasVideo(next)
+  }
+
+  async function toggleScreenShare() {
+    if (isScreenSharing) {
+      // ── Stop screen share, revert to disabled camera ──
+      const screenTrack = localStreamRef.current?.getVideoTracks()[0]
+      if (screenTrack) screenTrack.stop()
+
+      // Try to swap back to a camera track
+      try {
+        const camStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 640, height: 480, facingMode: 'user' },
+        })
+        const camTrack = camStream.getVideoTracks()[0]
+        camTrack.enabled = false // start camera off
+
+        if (localStreamRef.current) {
+          localStreamRef.current.getVideoTracks().forEach(t => { t.stop(); localStreamRef.current.removeTrack(t) })
+          localStreamRef.current.addTrack(camTrack)
+          setLocalStream(new MediaStream(localStreamRef.current.getTracks()))
+        }
+        // Replace track in all peer connections
+        Object.values(peersRef.current).forEach(peer => {
+          const sender = peer.getSenders().find(s => s.track?.kind === 'video')
+          if (sender) sender.replaceTrack(camTrack).catch(() => {})
+        })
+      } catch {
+        // No camera — just remove the screen track
+        if (localStreamRef.current) {
+          localStreamRef.current.getVideoTracks().forEach(t => { t.stop(); localStreamRef.current.removeTrack(t) })
+          setLocalStream(new MediaStream(localStreamRef.current.getTracks()))
+        }
+      }
+      setIsScreenSharing(false)
+      setHasVideo(false)
+    } else {
+      // ── Start screen share ──
+      try {
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: { cursor: 'always' }, audio: false,
+        })
+        const screenTrack = screenStream.getVideoTracks()[0]
+
+        if (localStreamRef.current) {
+          localStreamRef.current.getVideoTracks().forEach(t => { t.stop(); localStreamRef.current.removeTrack(t) })
+          localStreamRef.current.addTrack(screenTrack)
+          setLocalStream(new MediaStream(localStreamRef.current.getTracks()))
+        }
+        // Replace (or add) video sender in each peer
+        Object.values(peersRef.current).forEach(peer => {
+          const sender = peer.getSenders().find(s => s.track?.kind === 'video')
+          if (sender) sender.replaceTrack(screenTrack).catch(() => {})
+        })
+
+        setIsScreenSharing(true)
+        setHasVideo(true)
+
+        // Auto-stop when user clicks "Stop sharing" in browser UI
+        screenTrack.onended = () => toggleScreenShare()
+      } catch (err) {
+        if (err.name !== 'NotAllowedError') console.error('Screen share failed:', err)
+      }
+    }
   }
 
   function makePeer(targetUid, callId) {
@@ -372,14 +437,15 @@ export function CallProvider({ children }) {
     setRemoteStreams({})
     setIsMuted(false)
     setHasVideo(false)
+    setIsScreenSharing(false)
     setLocalStream(null)
   }
 
   return (
     <CallContext.Provider value={{
-      activeCall, incomingCall, remoteStreams, isMuted, hasVideo, localStream, callError,
+      activeCall, incomingCall, remoteStreams, isMuted, hasVideo, isScreenSharing, localStream, callError,
       startDMCall, acceptCall, declineCall, endCall,
-      startServerCall, toggleMute, toggleVideo,
+      startServerCall, toggleMute, toggleVideo, toggleScreenShare,
     }}>
       {children}
     </CallContext.Provider>

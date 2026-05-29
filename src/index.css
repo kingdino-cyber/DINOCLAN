@@ -2160,8 +2160,9 @@ html, body, #root {
   transition: background .15s, transform .1s;
 }
 .voice-ctrl-btn:hover { transform: scale(1.08); background: var(--bg-hover); }
-.voice-ctrl-btn.danger  { background: rgba(237,66,69,.25); }
-.voice-ctrl-btn.active  { background: rgba(90,158,68,.25); }
+.voice-ctrl-btn.danger    { background: rgba(237,66,69,.25); }
+.voice-ctrl-btn.active    { background: rgba(90,158,68,.25); }
+.voice-ctrl-btn.cam-active { background: rgba(90,158,68,.25); color: #5a9e44; }
 .voice-leave-btn {
   width: auto; padding: 0 20px; border-radius: 24px;
   font-size: 14px; font-weight: 700;

@@ -2,9 +2,9 @@ import { useState } from 'react'
 import { collection, addDoc, serverTimestamp, getDocs } from 'firebase/firestore'
 import { db } from '../../firebase'
 
-export default function CreateChannel({ serverId, onClose }) {
+export default function CreateChannel({ serverId, defaultType = 'text', onClose }) {
   const [name,    setName]    = useState('')
-  const [type,    setType]    = useState('text')
+  const [type,    setType]    = useState(defaultType)
   const [loading, setLoading] = useState(false)
 
   async function handleCreate(e) {
@@ -34,7 +34,7 @@ export default function CreateChannel({ serverId, onClose }) {
         <h2>Create Channel</h2>
         <p>Choose a type, give it a name, and start talking!</p>
 
-        {/* Channel type picker */}
+        {/* Channel type — locked to whatever + button was pressed */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
           {[
             { id: 'text',  icon: '#',  label: 'Text Channel',  desc: 'Chat with text, images and GIFs' },
@@ -42,12 +42,12 @@ export default function CreateChannel({ serverId, onClose }) {
           ].map(opt => (
             <div
               key={opt.id}
-              onClick={() => setType(opt.id)}
               style={{
-                flex: 1, padding: '12px 14px', borderRadius: 8, cursor: 'pointer',
+                flex: 1, padding: '12px 14px', borderRadius: 8,
                 border: `2px solid ${type === opt.id ? 'var(--accent)' : 'var(--bg-active)'}`,
                 background: type === opt.id ? 'rgba(90,158,68,0.12)' : 'var(--bg-tertiary)',
-                transition: 'border-color .15s, background .15s',
+                opacity: type === opt.id ? 1 : 0.45,
+                cursor: 'default',
               }}
             >
               <div style={{ fontSize: 22, marginBottom: 6 }}>{opt.icon}</div>

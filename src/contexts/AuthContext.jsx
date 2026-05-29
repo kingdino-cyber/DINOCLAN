@@ -5,6 +5,10 @@ import {
   signOut,
   onAuthStateChanged,
   updateProfile,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
+  sendEmailVerification,
 } from 'firebase/auth'
 import { doc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore'
 import { auth, db } from '../firebase'
@@ -18,8 +22,8 @@ export function AuthProvider({ children }) {
   async function register(email, password, displayName) {
     const cred = await createUserWithEmailAndPassword(auth, email, password)
     await updateProfile(cred.user, { displayName })
-    // Non-fatal: if Firestore rules deny this, auth still succeeds.
-    // Fix by setting Firestore rules to test mode in the Firebase console.
+    // Send email verification so only real emails can be used
+    sendEmailVerification(cred.user).catch(() => {})
     setDoc(doc(db, 'users', cred.user.uid), {
       uid: cred.user.uid,
       displayName,
@@ -29,6 +33,18 @@ export function AuthProvider({ children }) {
       createdAt: serverTimestamp(),
     }).catch(err => console.warn('Firestore profile write failed:', err.code, err.message))
     return cred
+  }
+
+  async function changePassword(currentPassword, newPassword) {
+    const user = auth.currentUser
+    if (!user) throw new Error('Not logged in')
+    const credential = EmailAuthProvider.credential(user.email, currentPassword)
+    await reauthenticateWithCredential(user, credential)
+    await updatePassword(user, newPassword)
+  }
+
+  async function resendVerificationEmail() {
+    if (auth.currentUser) await sendEmailVerification(auth.currentUser)
   }
 
   async function login(email, password) {
@@ -81,7 +97,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ currentUser, register, login, logout, loading }}>
+    <AuthContext.Provider value={{ currentUser, register, login, logout, changePassword, resendVerificationEmail, loading }}>
       {!loading && children}
     </AuthContext.Provider>
   )
