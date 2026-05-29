@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   collection, query, where, onSnapshot, addDoc,
-  updateDoc, doc, serverTimestamp, getDocs, getDoc, arrayUnion,
+  updateDoc, doc, serverTimestamp, getDocs, getDoc, arrayUnion, arrayRemove,
 } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -28,7 +28,7 @@ function FriendChip({ uid }) {
   )
 }
 
-function FriendRow({ uid, onStartDM }) {
+function FriendRow({ uid, onStartDM, onRemove }) {
   const [user, setUser] = useState(null)
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'users', uid), snap => {
@@ -38,20 +38,30 @@ function FriendRow({ uid, onStartDM }) {
   }, [uid])
   if (!user) return null
   return (
-    <div
-      className="member-item friend-row-clickable"
-      style={{ padding: '8px 12px', cursor: 'pointer' }}
-      onClick={() => onStartDM(uid)}
-      title={`Message ${user.displayName}`}
-    >
-      <Avatar user={user} size={36} showStatus />
-      <div style={{ flex: 1 }}>
-        <div style={{ color: 'var(--header-primary)', fontSize: 14, fontWeight: 600 }}>
-          {user.displayName}
+    <div className="member-item" style={{ padding: '8px 12px' }}>
+      {/* Clickable area → open DM */}
+      <div
+        style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, cursor: 'pointer', minWidth: 0 }}
+        onClick={() => onStartDM(uid)}
+        title={`Message ${user.displayName}`}
+      >
+        <Avatar user={user} size={36} showStatus />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ color: 'var(--header-primary)', fontSize: 14, fontWeight: 600 }}>
+            {user.displayName}
+          </div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 12, textTransform: 'capitalize' }}>
+            {user.status || 'offline'}
+          </div>
         </div>
-        <div style={{ color: 'var(--text-muted)', fontSize: 12, textTransform: 'capitalize' }}>{user.status || 'offline'}</div>
+        <span style={{ fontSize: 18, opacity: 0.4, flexShrink: 0 }}>💬</span>
       </div>
-      <span style={{ fontSize: 18, opacity: 0.5 }}>💬</span>
+      {/* Remove button */}
+      <button
+        className="friend-remove-btn"
+        onClick={() => onRemove(uid)}
+        title="Remove friend"
+      >✕</button>
     </div>
   )
 }
@@ -252,6 +262,21 @@ export default function FriendsPanel({ onStartDM }) {
     await updateDoc(doc(db, 'friendRequests', req.id), { status: 'declined' })
   }
 
+  async function removeFriend(friendUid) {
+    if (!window.confirm('Remove this friend? You can always add them back later.')) return
+    try {
+      await updateDoc(doc(db, 'users', currentUser.uid), {
+        friends: arrayRemove(friendUid),
+      })
+      // Best-effort: also remove us from their list
+      updateDoc(doc(db, 'users', friendUid), {
+        friends: arrayRemove(currentUser.uid),
+      }).catch(() => {})
+    } catch (err) {
+      console.error('Remove friend failed:', err)
+    }
+  }
+
   async function searchStats() {
     const q = statsQuery.trim()
     if (!q) return
@@ -308,7 +333,7 @@ export default function FriendsPanel({ onStartDM }) {
         {tab === 'all' && (
           friends.length === 0
             ? <div className="friends-empty"><span>🦕</span><p>No friends yet — add some dinos!</p></div>
-            : friends.map(uid => <FriendRow key={uid} uid={uid} onStartDM={onStartDM} />)
+            : friends.map(uid => <FriendRow key={uid} uid={uid} onStartDM={onStartDM} onRemove={removeFriend} />)
         )}
 
         {/* ── Pending requests ── */}

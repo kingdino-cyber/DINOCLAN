@@ -300,17 +300,21 @@ export default function DirectMessageView({ otherUid, onClose }) {
           )
         })}
 
-        {/* Typing indicator */}
+      </div>
+
+      {/* ── Typing bar — sits between messages and input, always reserves space ── */}
+      <div className="dm-typing-bar">
         {otherTyping && (
-          <div className="dm-typing-row">
-            <Avatar user={otherUser || {}} size={28} showStatus={false} />
-            <div className="dm-typing-bubble">
+          <>
+            <div className="dm-typing-dots">
               <span className="typing-dot" />
               <span className="typing-dot" />
               <span className="typing-dot" />
             </div>
-            <span className="dm-typing-label">{otherUser?.displayName} is typing…</span>
-          </div>
+            <span className="dm-typing-bar-text">
+              <strong>{otherUser?.displayName}</strong> is typing…
+            </span>
+          </>
         )}
       </div>
 

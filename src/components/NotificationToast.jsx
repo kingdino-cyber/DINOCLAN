@@ -10,12 +10,20 @@ export default function NotificationToast({ activeDmUid, onStartDM }) {
   const { currentUser } = useAuth()
   const [toasts, setToasts] = useState([])
 
-  // Keep a ref so the snapshot callback always sees the latest activeDmUid
-  const activeDmRef = useRef(activeDmUid)
-  useEffect(() => { activeDmRef.current = activeDmUid }, [activeDmUid])
+  // Keep refs so snapshot callbacks always see the latest values
+  const activeDmRef  = useRef(activeDmUid)
+  const onStartDMRef = useRef(onStartDM)
+  useEffect(() => { activeDmRef.current  = activeDmUid }, [activeDmUid])
+  useEffect(() => { onStartDMRef.current = onStartDM  }, [onStartDM])
 
-  // Track whether the first snapshot (existing data on load) has been skipped
   const initialized = useRef(false)
+
+  // Ask for desktop notification permission once on mount
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
+  }, [])
 
   useEffect(() => {
     if (!currentUser?.uid) return
@@ -28,7 +36,7 @@ export default function NotificationToast({ activeDmUid, onStartDM }) {
     )
 
     const unsub = onSnapshot(q, snap => {
-      // Skip the very first snapshot — that's just existing data, not new messages
+      // Skip the very first snapshot — that's existing data, not new messages
       if (!initialized.current) {
         initialized.current = true
         return
@@ -36,7 +44,7 @@ export default function NotificationToast({ activeDmUid, onStartDM }) {
 
       snap.docChanges().forEach(change => {
         if (change.type !== 'added') return
-        const data  = change.doc.data()
+        const data    = change.doc.data()
         const notifId = change.doc.id
 
         // If user is already looking at this DM, silently mark as read
@@ -48,11 +56,27 @@ export default function NotificationToast({ activeDmUid, onStartDM }) {
           return
         }
 
+        // In-app toast
         const toast = { id: notifId, ...data }
         setToasts(prev => [...prev, toast])
-
-        // Auto-dismiss after 6 seconds
         setTimeout(() => dismiss(notifId), 6000)
+
+        // Desktop notification — shows even when the browser is in the background
+        if ('Notification' in window && Notification.permission === 'granted') {
+          try {
+            const n = new Notification(`🦕 ${data.fromName}`, {
+              body: data.preview || '📷 Image',
+              icon: '/favicon.svg',
+              tag:  notifId,   // de-dupes if same message fires twice
+              silent: false,
+            })
+            n.onclick = () => {
+              window.focus()
+              onStartDMRef.current?.(data.fromUid)
+              n.close()
+            }
+          } catch (_) {}
+        }
       })
     })
 
@@ -107,19 +131,11 @@ export default function NotificationToast({ activeDmUid, onStartDM }) {
           }}
         >
           {/* Dino icon */}
-          <div style={{
-            fontSize: 30, lineHeight: 1,
-            flexShrink: 0, marginTop: 1,
-          }}>
-            🦕
-          </div>
+          <div style={{ fontSize: 30, lineHeight: 1, flexShrink: 0, marginTop: 1 }}>🦕</div>
 
           {/* Text */}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{
-              fontWeight: 800, color: 'var(--header-primary)',
-              fontSize: 14, marginBottom: 3,
-            }}>
+            <div style={{ fontWeight: 800, color: 'var(--header-primary)', fontSize: 14, marginBottom: 3 }}>
               {toast.fromName}
             </div>
             <div style={{
@@ -133,14 +149,13 @@ export default function NotificationToast({ activeDmUid, onStartDM }) {
             </div>
           </div>
 
-          {/* Dismiss button */}
+          {/* Dismiss */}
           <button
             onClick={e => { e.stopPropagation(); dismiss(toast.id) }}
             style={{
               background: 'none', border: 'none',
               color: 'var(--text-muted)', cursor: 'pointer',
-              fontSize: 15, padding: '0 2px', flexShrink: 0,
-              lineHeight: 1,
+              fontSize: 15, padding: '0 2px', flexShrink: 0, lineHeight: 1,
             }}
             title="Dismiss"
           >✕</button>
