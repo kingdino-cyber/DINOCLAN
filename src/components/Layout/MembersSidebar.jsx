@@ -3,9 +3,11 @@ import { doc, onSnapshot, updateDoc, arrayRemove, arrayUnion } from 'firebase/fi
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import { isAdmin, isOperator } from '../../utils/admin'
+import { useProfile } from '../../contexts/ProfileContext'
 import Avatar from '../Chat/Avatar'
 
-function MemberRow({ uid, serverId, server, canKick, isViewingServer, isHost, onStartDM }) {
+function MemberRow({ uid, serverId, server, canKick, isViewingServer, isHost }) {
+  const { openProfile } = useProfile()
   const { currentUser } = useAuth()
   const [user, setUser] = useState(null)
   const [action, setAction] = useState(null)
@@ -56,12 +58,10 @@ function MemberRow({ uid, serverId, server, canKick, isViewingServer, isHost, on
               className="member-name"
               style={{
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                cursor: isSelf ? 'default' : 'pointer',
-                textDecoration: isSelf ? 'none' : 'underline',
-                textUnderlineOffset: 3,
+                cursor: 'pointer',
               }}
-              onClick={() => { if (!isSelf && onStartDM) onStartDM(uid) }}
-              title={isSelf ? '' : `Message ${user.displayName}`}
+              onClick={() => openProfile(uid)}
+              title={`View ${user.displayName}'s profile`}
             >
               {user.displayName}
             </span>
@@ -129,7 +129,6 @@ export default function MembersSidebar({ serverId, server, memberIds, onStartDM 
           canKick={canKick}
           isViewingServer={isViewingServer}
           isHost={isHost}
-          onStartDM={onStartDM}
         />
       ))}
     </div>

@@ -21,6 +21,8 @@ export function CallProvider({ children }) {
   const [incomingCall, setIncomingCall] = useState(null)
   const [remoteStreams, setRemoteStreams] = useState({}) // { uid: MediaStream }
   const [isMuted, setIsMuted]         = useState(false)
+  const [hasVideo, setHasVideo]       = useState(false)
+  const [localStream, setLocalStream] = useState(null)
   const [callError, setCallError]     = useState('')
 
   const peersRef        = useRef({})   // { uid: RTCPeerConnection }
@@ -51,9 +53,32 @@ export function CallProvider({ children }) {
   // ── Helpers ───────────────────────────────────────────────────────────────
   async function getLocalStream() {
     if (localStreamRef.current) return localStreamRef.current
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+    let stream
+    try {
+      // Try to get audio + video; camera starts disabled so no permission popup until toggled
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: { width: 640, height: 480, facingMode: 'user' },
+      })
+      // Start with camera off — user explicitly enables it
+      stream.getVideoTracks().forEach(t => { t.enabled = false })
+    } catch {
+      // No camera available — audio only
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+    }
     localStreamRef.current = stream
+    setLocalStream(stream)
     return stream
+  }
+
+  function toggleVideo() {
+    const stream = localStreamRef.current
+    if (!stream) return
+    const tracks = stream.getVideoTracks()
+    if (tracks.length === 0) return          // no camera on this device
+    const next = !tracks[0].enabled
+    tracks.forEach(t => { t.enabled = next })
+    setHasVideo(next)
   }
 
   function makePeer(targetUid, callId) {
@@ -346,13 +371,15 @@ export function CallProvider({ children }) {
     setActiveCall(null)
     setRemoteStreams({})
     setIsMuted(false)
+    setHasVideo(false)
+    setLocalStream(null)
   }
 
   return (
     <CallContext.Provider value={{
-      activeCall, incomingCall, remoteStreams, isMuted, callError,
+      activeCall, incomingCall, remoteStreams, isMuted, hasVideo, localStream, callError,
       startDMCall, acceptCall, declineCall, endCall,
-      startServerCall, toggleMute,
+      startServerCall, toggleMute, toggleVideo,
     }}>
       {children}
     </CallContext.Provider>

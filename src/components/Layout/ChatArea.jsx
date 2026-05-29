@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react'
-import { doc, onSnapshot, collection, query, orderBy, limit, onSnapshot as fsSnapshot } from 'firebase/firestore'
+import { doc, onSnapshot } from 'firebase/firestore'
 import { db } from '../../firebase'
 import MessageList from '../Chat/MessageList'
 import MessageInput from '../Chat/MessageInput'
 import MembersSidebar from './MembersSidebar'
-import { useCall } from '../../contexts/CallContext'
+import VoiceChannelView from '../Chat/VoiceChannelView'
 
 export default function ChatArea({ server, channelId, onStartDM }) {
   const [channel, setChannel] = useState(null)
-  const { startServerCall, activeCall } = useCall()
 
   useEffect(() => {
     if (!server?.id || !channelId) { setChannel(null); return }
@@ -31,6 +30,17 @@ export default function ChatArea({ server, channelId, onStartDM }) {
     )
   }
 
+  // ── Voice channel — show the voice room instead of text chat ──
+  if (channel.type === 'voice') {
+    return (
+      <>
+        <VoiceChannelView server={server} channel={channel} />
+        <MembersSidebar serverId={server.id} server={server} memberIds={server.members || []} onStartDM={onStartDM} />
+      </>
+    )
+  }
+
+  // ── Text channel ──────────────────────────────────────────────
   return (
     <>
       <div className="chat-area">
@@ -40,15 +50,6 @@ export default function ChatArea({ server, channelId, onStartDM }) {
           {server.type === 'viewing' && (
             <span className="viewing-badge" title="Viewing server — only permitted members can post">👁️ Viewing</span>
           )}
-          <div style={{ flex: 1 }} />
-          <button
-            className="voice-call-btn"
-            onClick={() => startServerCall(server.id, server.name, channelId, channel.name)}
-            disabled={!!activeCall}
-            title={activeCall ? 'Already in a call' : `Start voice call in #${channel.name}`}
-          >
-            🔊 {activeCall?.channelId === channelId ? 'In Call' : 'Voice'}
-          </button>
         </div>
 
         <div className="messages-container">

@@ -2009,3 +2009,202 @@ html, body, #root {
   color: var(--danger);
   background: rgba(237, 66, 69, 0.15);
 }
+
+/* ── Voice channel sidebar items ── */
+.voice-channel-item { gap: 6px; }
+.voice-channel-icon { font-size: 14px; flex-shrink: 0; }
+.voice-user-count {
+  font-size: 10px; color: var(--text-muted);
+  background: var(--bg-active); border-radius: 10px;
+  padding: 1px 6px; flex-shrink: 0;
+}
+.voice-participants-sidebar {
+  padding: 2px 0 4px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.voice-participant-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: default;
+}
+.voice-participant-name {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Voice room (main content area) ── */
+.voice-room {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  overflow: hidden;
+}
+.voice-room-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--bg-active);
+  flex-shrink: 0;
+}
+.voice-room-icon { font-size: 20px; }
+.voice-room-name {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--header-primary);
+  margin: 0;
+}
+.voice-room-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--bg-active);
+  border-radius: 10px;
+  padding: 2px 9px;
+}
+
+/* ── Participant grid ── */
+.voice-grid {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 16px;
+  padding: 24px;
+  overflow-y: auto;
+}
+.voice-empty {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 15px;
+  padding: 60px 0;
+}
+
+/* ── Single video tile ── */
+.voice-tile {
+  position: relative;
+  width: 200px;
+  height: 160px;
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  border: 2px solid var(--bg-active);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: border-color .2s;
+}
+.voice-tile:hover { border-color: var(--accent); }
+.voice-tile-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.voice-tile-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+.voice-tile-label {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: linear-gradient(transparent, rgba(0,0,0,0.75));
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 18px 10px 7px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Controls bar ── */
+.voice-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--bg-active);
+  flex-shrink: 0;
+}
+.voice-ctrl-btn {
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bg-modifier);
+  font-size: 20px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s, transform .1s;
+}
+.voice-ctrl-btn:hover { transform: scale(1.08); background: var(--bg-hover); }
+.voice-ctrl-btn.danger  { background: rgba(237,66,69,.25); }
+.voice-ctrl-btn.active  { background: rgba(90,158,68,.25); }
+.voice-leave-btn {
+  width: auto; padding: 0 20px; border-radius: 24px;
+  font-size: 14px; font-weight: 700;
+  background: var(--danger); color: #fff;
+}
+.voice-leave-btn:hover { background: var(--danger-hover); }
+.voice-join-btn {
+  padding: 12px 32px;
+  border-radius: 24px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background .15s, transform .1s;
+}
+.voice-join-btn:hover { background: var(--accent-hover); transform: scale(1.03); }
+
+/* ── Mini call bar (server calls when not in voice room) ── */
+.call-ui-mini-bar {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px !important;
+  min-width: 0;
+  width: auto;
+}
+.call-ui-mini-bar .call-label { font-size: 11px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.call-ctrl-btn-sm {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bg-modifier);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: background .15s;
+}
+.call-ctrl-btn-sm:hover  { background: var(--bg-hover); }
+.call-ctrl-btn-sm.muted  { background: rgba(237,66,69,.3); }
+.call-ctrl-btn-sm.active { background: rgba(90,158,68,.3); }
+.call-ctrl-btn-sm.end-btn { background: var(--danger); }
+.call-ctrl-btn-sm.end-btn:hover { background: var(--danger-hover); }

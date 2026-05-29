@@ -3,7 +3,8 @@ import { collection, addDoc, serverTimestamp, getDocs } from 'firebase/firestore
 import { db } from '../../firebase'
 
 export default function CreateChannel({ serverId, onClose }) {
-  const [name, setName] = useState('')
+  const [name,    setName]    = useState('')
+  const [type,    setType]    = useState('text')
   const [loading, setLoading] = useState(false)
 
   async function handleCreate(e) {
@@ -15,6 +16,7 @@ export default function CreateChannel({ serverId, onClose }) {
       const snap = await getDocs(collection(db, 'servers', serverId, 'channels'))
       const ref = await addDoc(collection(db, 'servers', serverId, 'channels'), {
         name: slug,
+        type,
         createdAt: serverTimestamp(),
         position: snap.size,
       })
@@ -30,26 +32,44 @@ export default function CreateChannel({ serverId, onClose }) {
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal">
         <h2>Create Channel</h2>
-        <p>Channels are where conversations happen inside a server.</p>
+        <p>Choose a type, give it a name, and start talking!</p>
+
+        {/* Channel type picker */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
+          {[
+            { id: 'text',  icon: '#',  label: 'Text Channel',  desc: 'Chat with text, images and GIFs' },
+            { id: 'voice', icon: '🔊', label: 'Voice Channel', desc: 'Hang out with voice & video' },
+          ].map(opt => (
+            <div
+              key={opt.id}
+              onClick={() => setType(opt.id)}
+              style={{
+                flex: 1, padding: '12px 14px', borderRadius: 8, cursor: 'pointer',
+                border: `2px solid ${type === opt.id ? 'var(--accent)' : 'var(--bg-active)'}`,
+                background: type === opt.id ? 'rgba(90,158,68,0.12)' : 'var(--bg-tertiary)',
+                transition: 'border-color .15s, background .15s',
+              }}
+            >
+              <div style={{ fontSize: 22, marginBottom: 6 }}>{opt.icon}</div>
+              <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--header-primary)', marginBottom: 3 }}>{opt.label}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{opt.desc}</div>
+            </div>
+          ))}
+        </div>
+
         <form onSubmit={handleCreate}>
           <label>Channel Name</label>
           <input
             type="text"
             value={name}
             onChange={e => setName(e.target.value)}
-            placeholder="new-channel"
+            placeholder={type === 'voice' ? 'lounge' : 'new-channel'}
             autoFocus
             maxLength={80}
           />
           <div className="modal-actions">
-            <button type="button" className="btn-ghost" onClick={() => onClose()}>
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="btn-confirm"
-              disabled={!name.trim() || loading}
-            >
+            <button type="button" className="btn-ghost" onClick={() => onClose()}>Cancel</button>
+            <button type="submit" className="btn-confirm" disabled={!name.trim() || loading}>
               {loading ? 'Creating…' : 'Create Channel'}
             </button>
           </div>

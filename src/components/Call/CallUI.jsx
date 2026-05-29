@@ -22,22 +22,15 @@ function AudioElement({ stream }) {
     const el = ref.current
     if (!el || !stream) return
     el.srcObject = stream
-    // Some browsers block autoplay — retry on the next user interaction
-    const attempt = () => {
-      el.play().catch(() => {
-        const retryOnClick = () => {
-          el.play().catch(() => {})
-          document.removeEventListener('click', retryOnClick)
-        }
-        document.addEventListener('click', retryOnClick)
-      })
-    }
-    attempt()
+    el.play().catch(() => {
+      const retry = () => { el.play().catch(() => {}); document.removeEventListener('click', retry) }
+      document.addEventListener('click', retry)
+    })
   }, [stream])
   return <audio ref={ref} autoPlay playsInline style={{ display: 'none' }} />
 }
 
-// Fetches user data from Firestore and shows their real avatar
+// Fetches user data and shows their real avatar in DM call bubble
 function UserBubble({ uid, name, isYou, isMuted }) {
   const [userData, setUserData] = useState(null)
   useEffect(() => {
@@ -66,17 +59,43 @@ function UserBubble({ uid, name, isYou, isMuted }) {
 }
 
 export default function CallUI() {
-  const { currentUser } = useAuth()
-  const { activeCall, remoteStreams, isMuted, endCall, toggleMute } = useCall()
+  const { currentUser }  = useAuth()
+  const {
+    activeCall, remoteStreams,
+    isMuted, toggleMute,
+    hasVideo, toggleVideo,
+    endCall,
+  } = useCall()
+
   if (!activeCall) return null
 
   const { type, status, participants = [], targetName, channelName, serverName } = activeCall
 
-  const callLabel = type === 'dm'
-    ? `📞 Call with ${targetName || '...'}`
-    : `🔊 ${serverName || 'Server'} — #${channelName || 'voice'}`
+  // ── Server call — show a slim floating bar (VoiceChannelView is the main UI) ──
+  if (type === 'server') {
+    return (
+      <>
+        <RemoteAudio streams={remoteStreams} />
+        <div className="call-ui call-ui-mini-bar">
+          <span className={`call-status-dot ${status === 'active' ? 'active' : 'ringing'}`} />
+          <span className="call-label" style={{ fontSize: 11 }}>
+            🔊 {serverName} — #{channelName}
+          </span>
+          <button className={`call-ctrl-btn-sm ${isMuted ? 'muted' : ''}`} onClick={toggleMute} title={isMuted ? 'Unmute' : 'Mute'}>
+            {isMuted ? '🔇' : '🎤'}
+          </button>
+          <button className={`call-ctrl-btn-sm ${hasVideo ? 'active' : ''}`} onClick={toggleVideo} title={hasVideo ? 'Camera off' : 'Camera on'}>
+            {hasVideo ? '📷' : '🚫📷'}
+          </button>
+          <button className="call-ctrl-btn-sm end-btn" onClick={endCall} title="Leave">📵</button>
+        </div>
+      </>
+    )
+  }
 
+  // ── DM call — full bubble UI ──────────────────────────────────────────────
   const isRinging = status === 'ringing'
+  const callLabel = `📞 Call with ${targetName || '...'}`
   const participantCount = Object.keys(remoteStreams).length + 1
 
   return (
@@ -111,10 +130,13 @@ export default function CallUI() {
             {isMuted ? '🔇' : '🎤'}
           </button>
           <button
-            className="call-ctrl-btn end-btn"
-            onClick={endCall}
-            title="End / Leave call"
+            className={`call-ctrl-btn ${hasVideo ? 'active' : ''}`}
+            onClick={toggleVideo}
+            title={hasVideo ? 'Camera off' : 'Camera on'}
           >
+            {hasVideo ? '📷' : '🚫📷'}
+          </button>
+          <button className="call-ctrl-btn end-btn" onClick={endCall} title="End call">
             📵
           </button>
         </div>

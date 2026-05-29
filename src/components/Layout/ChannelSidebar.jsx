@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore'
+import {
+  collection, query, orderBy, onSnapshot,
+  doc, updateDoc, deleteDoc, getDocs, where,
+} from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import { isAdmin } from '../../utils/admin'
 import CreateChannel from '../Modals/CreateChannel'
 import UserPanel from './UserPanel'
 import SponsorBanner from './SponsorBanner'
+import Avatar from '../Chat/Avatar'
 
+// ── Compress server icon ──────────────────────────────────────────────────────
 function compressImage(file) {
   return new Promise(resolve => {
     const reader = new FileReader()
@@ -15,13 +20,10 @@ function compressImage(file) {
       img.onload = () => {
         const size = 128
         const canvas = document.createElement('canvas')
-        canvas.width = size
-        canvas.height = size
+        canvas.width = size; canvas.height = size
         const ctx = canvas.getContext('2d')
         const s = Math.min(img.width, img.height)
-        const ox = (img.width - s) / 2
-        const oy = (img.height - s) / 2
-        ctx.drawImage(img, ox, oy, s, s, 0, 0, size, size)
+        ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size)
         resolve(canvas.toDataURL('image/jpeg', 0.75))
       }
       img.src = e.target.result
@@ -30,11 +32,77 @@ function compressImage(file) {
   })
 }
 
+// ── Live participant row shown below a voice channel ─────────────────────────
+function VoiceParticipantRow({ uid, name }) {
+  const [user, setUser] = useState(null)
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'users', uid), snap => {
+      if (snap.exists()) setUser({ uid: snap.id, ...snap.data() })
+    })
+    return unsub
+  }, [uid])
+  const display = user?.displayName || name
+  return (
+    <div className="voice-participant-row">
+      <Avatar user={user || { displayName: name }} size={20} showStatus={false} />
+      <span className="voice-participant-name">{display}</span>
+    </div>
+  )
+}
+
+// ── Voice channel item: shows channel + live participants ─────────────────────
+function VoiceChannelItem({ ch, isActive, onClick, canAdmin, onDelete }) {
+  const [participants, setParticipants] = useState([])
+
+  useEffect(() => {
+    const q = query(
+      collection(db, 'calls'),
+      where('channelId', '==', ch.id),
+      where('status',    '==', 'active'),
+    )
+    return onSnapshot(q, snap => {
+      if (snap.empty) { setParticipants([]); return }
+      setParticipants(snap.docs[0].data().participants || [])
+    })
+  }, [ch.id])
+
+  return (
+    <div className="voice-channel-group">
+      <div
+        className={`channel-item voice-channel-item ${isActive ? 'active' : ''}`}
+        onClick={onClick}
+      >
+        <span className="voice-channel-icon">🔊</span>
+        <span style={{ flex: 1 }}>{ch.name}</span>
+        {participants.length > 0 && (
+          <span className="voice-user-count">{participants.length}</span>
+        )}
+        {canAdmin && (
+          <button
+            className="channel-delete-btn"
+            onClick={e => { e.stopPropagation(); onDelete(ch) }}
+            title="Delete channel"
+          >🗑️</button>
+        )}
+      </div>
+      {/* Live participant list */}
+      {participants.length > 0 && (
+        <div className="voice-participants-sidebar">
+          {participants.map(p => (
+            <VoiceParticipantRow key={p.uid} uid={p.uid} name={p.name} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Main sidebar ──────────────────────────────────────────────────────────────
 export default function ChannelSidebar({ server, activeChannelId, onSelectChannel }) {
   const { currentUser } = useAuth()
-  const [channels, setChannels] = useState([])
+  const [channels,   setChannels]   = useState([])
   const [showCreate, setShowCreate] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [copied,     setCopied]     = useState(false)
   const fileRef = useRef(null)
 
   const canAdmin = isAdmin(currentUser, server)
@@ -45,10 +113,7 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
       collection(db, 'servers', server.id, 'channels'),
       orderBy('position', 'asc'),
     )
-    const unsub = onSnapshot(q, snap => {
-      setChannels(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-    })
-    return unsub
+    return onSnapshot(q, snap => setChannels(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
   }, [server?.id])
 
   function handleChannelCreated(channelId) {
@@ -66,11 +131,9 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
 
   async function handleDeleteChannel(ch) {
     if (!window.confirm(`Delete #${ch.name}? All messages will be lost.`)) return
-    // delete all messages in channel first
     const msgsSnap = await getDocs(collection(db, 'servers', server.id, 'channels', ch.id, 'messages'))
     await Promise.all(msgsSnap.docs.map(d => deleteDoc(d.ref)))
     await deleteDoc(doc(db, 'servers', server.id, 'channels', ch.id))
-    // if this was the active channel, deselect it
     if (activeChannelId === ch.id) onSelectChannel(null)
   }
 
@@ -81,6 +144,10 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
       setTimeout(() => setCopied(false), 2000)
     })
   }
+
+  // Separate text vs voice channels (default to text for old channels)
+  const textChannels  = channels.filter(ch => (ch.type || 'text') === 'text')
+  const voiceChannels = channels.filter(ch => ch.type === 'voice')
 
   if (!server) {
     return (
@@ -96,6 +163,7 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
 
   return (
     <div className="channel-sidebar">
+      {/* ── Server header ── */}
       <div className="channel-sidebar-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
           <div
@@ -121,6 +189,8 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
       </div>
 
       <div className="channel-list">
+
+        {/* ── Text Channels ── */}
         <div className="channel-category">
           <span>Text Channels</span>
           {canAdmin && (
@@ -128,12 +198,11 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
           )}
         </div>
 
-        {channels.map(ch => (
+        {textChannels.map(ch => (
           <div
             key={ch.id}
             className={`channel-item ${activeChannelId === ch.id ? 'active' : ''}`}
             onClick={() => onSelectChannel(ch.id)}
-            data-tooltip={`#${ch.name}`}
           >
             <span className="channel-hash">#</span>
             <span style={{ flex: 1 }}>{ch.name}</span>
@@ -142,18 +211,36 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
                 className="channel-delete-btn"
                 onClick={e => { e.stopPropagation(); handleDeleteChannel(ch) }}
                 title="Delete channel"
-              >
-                🗑️
-              </button>
+              >🗑️</button>
             )}
           </div>
         ))}
-
-        {channels.length === 0 && (
-          <p style={{ fontSize: 13, color: 'var(--text-muted)', padding: '4px 24px' }}>
-            No channels yet
-          </p>
+        {textChannels.length === 0 && (
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', padding: '4px 24px' }}>No text channels yet</p>
         )}
+
+        {/* ── Voice Channels ── */}
+        <div className="channel-category" style={{ marginTop: 12 }}>
+          <span>Voice Channels</span>
+          {canAdmin && (
+            <button onClick={() => setShowCreate(true)} title="Create channel">+</button>
+          )}
+        </div>
+
+        {voiceChannels.map(ch => (
+          <VoiceChannelItem
+            key={ch.id}
+            ch={ch}
+            isActive={activeChannelId === ch.id}
+            onClick={() => onSelectChannel(ch.id)}
+            canAdmin={canAdmin}
+            onDelete={handleDeleteChannel}
+          />
+        ))}
+        {voiceChannels.length === 0 && (
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', padding: '4px 24px' }}>No voice channels yet</p>
+        )}
+
       </div>
 
       <SponsorBanner />
