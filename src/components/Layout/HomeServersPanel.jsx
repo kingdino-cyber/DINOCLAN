@@ -15,7 +15,7 @@ function getInitials(name) {
 function GroupCtxMenu({ group, currentUser, pos, onClose, onLeave, onDisband, onInvite }) {
   const ref = useRef(null)
   const isOwner = group.ownerId === currentUser?.uid
-  const canDisband = isAdmin(currentUser, group)
+  const canDisband = isOwner  // only the actual host can disband
 
   useEffect(() => {
     function h(e) { if (ref.current && !ref.current.contains(e.target)) onClose() }

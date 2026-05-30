@@ -53,6 +53,7 @@ export default function MessageInput({ serverId, channelId, channelName, server 
   // ── ALL hooks must come before any conditional return (Rules of Hooks) ────
   const [text,         setText]         = useState('')
   const [sending,      setSending]      = useState(false)
+  const [sendError,    setSendError]    = useState('')
   const [userData,     setUserData]     = useState(null)
   const [pendingImage, setPendingImage] = useState(null)
   const [showEmoji,    setShowEmoji]    = useState(false)
@@ -194,7 +195,10 @@ export default function MessageInput({ serverId, channelId, channelName, server 
     const content = text.trim()
     if ((!content && !pendingImage) || sending) return
     setSending(true)
+    setSendError('')
+    const savedText  = text
     const imageToSend = pendingImage
+    // Optimistically clear the input
     setText('')
     setPendingImage(null)
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
@@ -216,7 +220,12 @@ export default function MessageInput({ serverId, channelId, channelName, server 
         }
       )
     } catch (err) {
-      console.error('Failed to send message', err)
+      console.error('Failed to send message:', err.code, err.message)
+      // Restore the text so the user doesn't lose their message
+      setText(savedText)
+      setPendingImage(imageToSend)
+      setSendError('Failed to send — check your connection and try again.')
+      setTimeout(() => setSendError(''), 4000)
     } finally {
       setSending(false)
     }
@@ -239,6 +248,17 @@ export default function MessageInput({ serverId, channelId, channelName, server 
 
   return (
     <>
+      {/* ── Send error banner ── */}
+      {sendError && (
+        <div style={{
+          background: 'rgba(237,66,69,.15)', border: '1px solid var(--danger)',
+          borderRadius: 6, padding: '6px 14px', margin: '0 16px 4px',
+          fontSize: 12, color: '#ed4245', flexShrink: 0,
+        }}>
+          ⚠️ {sendError}
+        </div>
+      )}
+
       {/* ── Typing bar — always reserves space so layout never jumps ── */}
       <div className="dm-typing-bar">
         {typingNames.length > 0 && (

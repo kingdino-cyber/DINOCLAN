@@ -2,38 +2,89 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users can read any profile, but only write their own
+    // ── Users ─────────────────────────────────────────────────────────────────
+    // Any signed-in user can read profiles; only you can write your own.
     match /users/{userId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null && request.auth.uid == userId;
+
+      // DM notifications written by sender, read/deleted by recipient
+      match /notifications/{notifId} {
+        allow create: if request.auth != null;
+        allow read, delete: if request.auth != null && request.auth.uid == userId;
+      }
     }
 
-    // Servers
+    // ── Friend requests ────────────────────────────────────────────────────────
+    match /friendRequests/{reqId} {
+      allow read, create: if request.auth != null;
+      allow update: if request.auth != null &&
+        (request.auth.uid == resource.data.toUid ||
+         request.auth.uid == resource.data.fromUid);
+    }
+
+    // ── Server / Group invites ─────────────────────────────────────────────────
+    match /serverInvites/{inviteId} {
+      allow create: if request.auth != null;
+      allow read, update: if request.auth != null &&
+        (request.auth.uid == resource.data.toUid ||
+         request.auth.uid == resource.data.fromUid);
+    }
+
+    // ── Direct Messages ────────────────────────────────────────────────────────
+    // dmId is always "{uid1}_{uid2}" (sorted). Both parties can read/write.
+    match /dms/{dmId} {
+      allow read, write: if request.auth != null &&
+        request.auth.uid in dmId.split('_');
+
+      match /messages/{messageId} {
+        allow read, create: if request.auth != null &&
+          request.auth.uid in dmId.split('_');
+        allow delete: if request.auth != null && request.auth.uid == resource.data.uid;
+      }
+    }
+
+    // ── Voice / Video calls ────────────────────────────────────────────────────
+    match /calls/{callId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // ── Servers and Groups ─────────────────────────────────────────────────────
     match /servers/{serverId} {
       allow read: if request.auth != null &&
         request.auth.uid in resource.data.members;
+
       allow create: if request.auth != null;
-      // Only members can update (e.g. join)
+
+      // Members can update (e.g. join via invite, settings changes)
       allow update: if request.auth != null &&
         (request.auth.uid in resource.data.members ||
          request.auth.uid == request.resource.data.members[request.resource.data.members.size() - 1]);
 
-      // Channels — readable/writable by server members only
+      // Only the owner (host) can delete (disband) the server/group
+      allow delete: if request.auth != null &&
+        request.auth.uid == resource.data.ownerId;
+
+      // ── Channels ──────────────────────────────────────────────────────────
       match /channels/{channelId} {
         allow read, write: if request.auth != null &&
           request.auth.uid in get(/databases/$(database)/documents/servers/$(serverId)).data.members;
 
-        // Messages
+        // ── Messages ────────────────────────────────────────────────────────
         match /messages/{messageId} {
           allow read: if request.auth != null &&
             request.auth.uid in get(/databases/$(database)/documents/servers/$(serverId)).data.members;
+
           allow create: if request.auth != null &&
             request.auth.uid in get(/databases/$(database)/documents/servers/$(serverId)).data.members &&
             request.resource.data.uid == request.auth.uid;
+
+          // Only the author can edit or delete their own message
           allow update, delete: if request.auth != null &&
             request.auth.uid == resource.data.uid;
         }
       }
     }
+
   }
 }
