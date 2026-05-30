@@ -6,15 +6,25 @@ import {
 import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
 
-export default function NotificationToast({ activeDmUid, onStartDM }) {
+export default function NotificationToast({
+  activeDmUid, onStartDM,
+  activeServerId, activeChannelId, onNavigateToServer,
+}) {
   const { currentUser } = useAuth()
   const [toasts, setToasts] = useState([])
 
   // Keep refs so snapshot callbacks always see the latest values
-  const activeDmRef  = useRef(activeDmUid)
-  const onStartDMRef = useRef(onStartDM)
-  useEffect(() => { activeDmRef.current  = activeDmUid }, [activeDmUid])
-  useEffect(() => { onStartDMRef.current = onStartDM  }, [onStartDM])
+  const activeDmRef       = useRef(activeDmUid)
+  const activeServerRef   = useRef(activeServerId)
+  const activeChannelRef  = useRef(activeChannelId)
+  const onStartDMRef      = useRef(onStartDM)
+  const onNavigateRef     = useRef(onNavigateToServer)
+
+  useEffect(() => { activeDmRef.current      = activeDmUid      }, [activeDmUid])
+  useEffect(() => { activeServerRef.current  = activeServerId   }, [activeServerId])
+  useEffect(() => { activeChannelRef.current = activeChannelId  }, [activeChannelId])
+  useEffect(() => { onStartDMRef.current     = onStartDM        }, [onStartDM])
+  useEffect(() => { onNavigateRef.current    = onNavigateToServer }, [onNavigateToServer])
 
   const initialized = useRef(false)
 
@@ -47,13 +57,29 @@ export default function NotificationToast({ activeDmUid, onStartDM }) {
         const data    = change.doc.data()
         const notifId = change.doc.id
 
-        // If user is already looking at this DM, silently mark as read
-        if (data.fromUid === activeDmRef.current) {
-          updateDoc(
-            doc(db, 'users', currentUser.uid, 'notifications', notifId),
-            { read: true }
-          ).catch(() => {})
-          return
+        const isServer = data.type === 'server'
+
+        if (isServer) {
+          // Skip if already viewing that exact channel
+          if (
+            data.serverId  === activeServerRef.current &&
+            data.channelId === activeChannelRef.current
+          ) {
+            updateDoc(
+              doc(db, 'users', currentUser.uid, 'notifications', notifId),
+              { read: true }
+            ).catch(() => {})
+            return
+          }
+        } else {
+          // DM: skip if already in that conversation
+          if (data.fromUid === activeDmRef.current) {
+            updateDoc(
+              doc(db, 'users', currentUser.uid, 'notifications', notifId),
+              { read: true }
+            ).catch(() => {})
+            return
+          }
         }
 
         // In-app toast
@@ -61,18 +87,26 @@ export default function NotificationToast({ activeDmUid, onStartDM }) {
         setToasts(prev => [...prev, toast])
         setTimeout(() => dismiss(notifId), 6000)
 
-        // Desktop notification — shows even when the browser is in the background
+        // Desktop notification
         if ('Notification' in window && Notification.permission === 'granted') {
           try {
-            const n = new Notification(`🦕 ${data.fromName}`, {
-              body: data.preview || '📷 Image',
+            const title = isServer
+              ? `🦕 ${data.fromName} in #${data.channelName}`
+              : `🦕 ${data.fromName}`
+            const body = data.preview || (isServer ? '💬 New message' : '📷 Image')
+            const n = new Notification(title, {
+              body,
               icon: '/favicon.svg',
-              tag:  notifId,   // de-dupes if same message fires twice
+              tag:  notifId,
               silent: false,
             })
             n.onclick = () => {
               window.focus()
-              onStartDMRef.current?.(data.fromUid)
+              if (isServer) {
+                onNavigateRef.current?.(data.serverId, data.channelId)
+              } else {
+                onStartDMRef.current?.(data.fromUid)
+              }
               n.close()
             }
           } catch (_) {}
@@ -92,7 +126,11 @@ export default function NotificationToast({ activeDmUid, onStartDM }) {
   }
 
   function handleClick(toast) {
-    onStartDM(toast.fromUid)
+    if (toast.type === 'server') {
+      onNavigateToServer?.(toast.serverId, toast.channelId)
+    } else {
+      onStartDM?.(toast.fromUid)
+    }
     dismiss(toast.id)
   }
 
@@ -130,22 +168,27 @@ export default function NotificationToast({ activeDmUid, onStartDM }) {
             animation: 'toastIn 0.22s cubic-bezier(0.22,1,0.36,1)',
           }}
         >
-          {/* Dino icon */}
+          {/* Icon */}
           <div style={{ fontSize: 30, lineHeight: 1, flexShrink: 0, marginTop: 1 }}>🦕</div>
 
           {/* Text */}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 800, color: 'var(--header-primary)', fontSize: 14, marginBottom: 3 }}>
+            <div style={{ fontWeight: 800, color: 'var(--header-primary)', fontSize: 14, marginBottom: 2 }}>
               {toast.fromName}
             </div>
+            {toast.type === 'server' && (
+              <div style={{ fontSize: 11, color: 'var(--accent)', marginBottom: 3, fontWeight: 600 }}>
+                #{toast.channelName} · {toast.serverName}
+              </div>
+            )}
             <div style={{
               color: 'var(--text-muted)', fontSize: 13,
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
-              {toast.preview || '📷 Image'}
+              {toast.preview || '💬 New message'}
             </div>
             <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 5, fontWeight: 600 }}>
-              Click to open chat →
+              Click to open →
             </div>
           </div>
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  collection, query, orderBy, limit, onSnapshot,
+  collection, query, orderBy, limitToLast, onSnapshot,
   addDoc, serverTimestamp, doc, onSnapshot as fsSnap,
   setDoc, updateDoc, deleteField,
 } from 'firebase/firestore'
@@ -99,7 +99,7 @@ export default function DirectMessageView({ otherUid, onClose }) {
     const q = query(
       collection(db, 'dms', dmId, 'messages'),
       orderBy('createdAt', 'asc'),
-      limit(100),
+      limitToLast(200),
     )
     const unsub = onSnapshot(q, snap => {
       const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() }))

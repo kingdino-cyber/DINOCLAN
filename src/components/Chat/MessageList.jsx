@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  collection, query, orderBy, limit, onSnapshot,
+  collection, query, orderBy, limitToLast, onSnapshot,
 } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -22,7 +22,7 @@ export default function MessageList({ serverId, channelId, channelName }) {
     const q = query(
       collection(db, 'servers', serverId, 'channels', channelId, 'messages'),
       orderBy('createdAt', 'asc'),
-      limit(100),
+      limitToLast(200),
     )
 
     const unsub = onSnapshot(q, snap => {

@@ -58,6 +58,12 @@ export default function MainLayout() {
     setActiveServerId(null)
   }
 
+  function handleNavigateToServer(serverId, channelId) {
+    setActiveServerId(serverId)
+    setActiveChannelId(channelId)
+    setActiveDmUid(null)
+  }
+
   return (
     <ProfileProvider>
       <div className="app-layout">
@@ -68,8 +74,14 @@ export default function MainLayout() {
         {/* Profile panel lives here — has access to handleStartDM */}
         <UserProfileModal onStartDM={handleStartDM} />
 
-        {/* DM notifications */}
-        <NotificationToast activeDmUid={activeDmUid} onStartDM={handleStartDM} />
+        {/* DM + server notifications */}
+        <NotificationToast
+          activeDmUid={activeDmUid}
+          onStartDM={handleStartDM}
+          activeServerId={activeServerId}
+          activeChannelId={activeChannelId}
+          onNavigateToServer={handleNavigateToServer}
+        />
 
         <ServerSidebar
           activeServerId={activeServerId}

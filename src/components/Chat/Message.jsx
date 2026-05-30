@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { format, isToday, isYesterday } from 'date-fns'
-import { doc, updateDoc, deleteDoc } from 'firebase/firestore'
+import { doc, updateDoc, deleteDoc, arrayUnion, arrayRemove } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useProfile } from '../../contexts/ProfileContext'
@@ -16,7 +16,104 @@ function formatTimestamp(ts, short = false) {
   return format(date, 'dd/MM/yyyy HH:mm')
 }
 
-/* ── Hover action bar shown on the right of every message ── */
+/* ── File attachment card ── */
+function FileAttachment({ url, name, size, type }) {
+  function formatSize(bytes) {
+    if (!bytes) return ''
+    if (bytes < 1024)           return `${bytes} B`
+    if (bytes < 1024 * 1024)    return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  function getIcon(t) {
+    if (!t) return '📎'
+    if (t.includes('pdf'))                          return '📄'
+    if (t.includes('word') || t.includes('document')) return '📝'
+    if (t.includes('sheet') || t.includes('excel')) return '📊'
+    if (t.includes('presentation') || t.includes('powerpoint')) return '📑'
+    if (t.includes('zip') || t.includes('archive') || t.includes('rar')) return '🗜️'
+    if (t.includes('video'))                        return '🎬'
+    if (t.includes('audio'))                        return '🎵'
+    if (t.includes('text'))                         return '📃'
+    return '📎'
+  }
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="file-attachment"
+      onClick={e => e.stopPropagation()}
+    >
+      <span className="file-attach-icon">{getIcon(type)}</span>
+      <div className="file-attach-info">
+        <span className="file-attach-name">{name || 'File'}</span>
+        {size > 0 && <span className="file-attach-size">{formatSize(size)}</span>}
+      </div>
+      <span className="file-attach-dl" title="Download">⬇️</span>
+    </a>
+  )
+}
+
+/* ── Poll message ── */
+function PollMessage({ message, messageRef }) {
+  const { currentUser } = useAuth()
+  const votes = message.pollVotes || {}
+
+  const totalVotes = Object.values(votes).reduce(
+    (sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0), 0
+  )
+
+  // Which option did the current user vote for? (-1 = none)
+  const myVote = (message.pollOptions || []).findIndex(
+    (_, i) => Array.isArray(votes[String(i)]) && votes[String(i)].includes(currentUser?.uid)
+  )
+
+  async function vote(index) {
+    if (!currentUser?.uid) return
+    const updates = {}
+    if (myVote === index) {
+      // Unvote
+      updates[`pollVotes.${index}`] = arrayRemove(currentUser.uid)
+    } else {
+      if (myVote >= 0) {
+        updates[`pollVotes.${myVote}`] = arrayRemove(currentUser.uid)
+      }
+      updates[`pollVotes.${index}`] = arrayUnion(currentUser.uid)
+    }
+    await updateDoc(messageRef, updates)
+  }
+
+  return (
+    <div className="poll-message">
+      <div className="poll-question">📊 {message.pollQuestion}</div>
+      {(message.pollOptions || []).map((option, i) => {
+        const count  = Array.isArray(votes[String(i)]) ? votes[String(i)].length : 0
+        const pct    = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0
+        const voted  = myVote === i
+        return (
+          <button
+            key={i}
+            className={`poll-option-btn ${voted ? 'voted' : ''}`}
+            onClick={() => vote(i)}
+          >
+            <div className="poll-option-top">
+              <span className="poll-option-text">{option}</span>
+              <span className="poll-option-count">{count} {count === 1 ? 'vote' : 'votes'} · {pct}%</span>
+            </div>
+            <div className="poll-bar">
+              <div className="poll-bar-fill" style={{ width: `${pct}%` }} />
+            </div>
+          </button>
+        )
+      })}
+      <div className="poll-total">{totalVotes} total {totalVotes === 1 ? 'vote' : 'votes'}</div>
+    </div>
+  )
+}
+
+/* ── Hover action bar ── */
 function MessageActions({ message, serverId, channelId, onEdit, onDelete, canEdit, canDelete }) {
   const { currentUser } = useAuth()
 
@@ -114,8 +211,9 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
   const [editing, setEditing] = useState(false)
   const [hovered, setHovered] = useState(false)
 
-  const isOwn    = message.uid === currentUser?.uid
-  const canEdit   = isOwn && !!message.content  // can't edit image-only messages
+  const isPoll    = message.type === 'poll'
+  const isOwn     = message.uid === currentUser?.uid
+  const canEdit   = isOwn && !!message.content && !isPoll
   const canDelete = isOwn || isAdmin(currentUser, null)
 
   const sameAuthor = !isFirst &&
@@ -160,22 +258,36 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
 
   const body = (
     <>
-      {message.content && !editing && (
-        <p className="msg-content">
-          {message.content}
-          {message.edited && <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 4 }}>(edited)</span>}
-        </p>
-      )}
-      {editing && (
-        <EditBox
-          original={message.content}
-          messageRef={messageRef}
-          onDone={() => setEditing(false)}
-        />
-      )}
-      {message.imageURL && (
-        <img src={message.imageURL} alt="attachment" className="msg-image"
-          onClick={e => { e.stopPropagation(); window.open(message.imageURL, '_blank') }} />
+      {isPoll ? (
+        <PollMessage message={message} messageRef={messageRef} />
+      ) : (
+        <>
+          {message.content && !editing && (
+            <p className="msg-content">
+              {message.content}
+              {message.edited && <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 4 }}>(edited)</span>}
+            </p>
+          )}
+          {editing && (
+            <EditBox
+              original={message.content}
+              messageRef={messageRef}
+              onDone={() => setEditing(false)}
+            />
+          )}
+          {message.imageURL && (
+            <img src={message.imageURL} alt="attachment" className="msg-image"
+              onClick={e => { e.stopPropagation(); window.open(message.imageURL, '_blank') }} />
+          )}
+          {message.fileURL && (
+            <FileAttachment
+              url={message.fileURL}
+              name={message.fileName}
+              size={message.fileSize}
+              type={message.fileType}
+            />
+          )}
+        </>
       )}
     </>
   )
