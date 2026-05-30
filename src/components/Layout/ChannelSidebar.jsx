@@ -7,6 +7,7 @@ import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import { isAdmin } from '../../utils/admin'
 import CreateChannel from '../Modals/CreateChannel'
+import EditServer from '../Modals/EditServer'
 import UserPanel from './UserPanel'
 import SponsorBanner from './SponsorBanner'
 import Avatar from '../Chat/Avatar'
@@ -104,6 +105,7 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
   const [showCreate,      setShowCreate]      = useState(false)
   const [createType,      setCreateType]      = useState('text')
   const [copied,          setCopied]          = useState(false)
+  const [showEditServer,  setShowEditServer]  = useState(false)
   const fileRef = useRef(null)
 
   const canAdmin = isAdmin(currentUser, server)
@@ -179,6 +181,16 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
           </div>
           <h2 style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{server.name}</h2>
         </div>
+        {canAdmin && (
+          <button
+            className="invite-btn"
+            onClick={() => setShowEditServer(true)}
+            title="Server settings"
+            style={{ fontSize: 15 }}
+          >
+            ⚙️
+          </button>
+        )}
         <button
           className="invite-btn"
           onClick={handleInvite}
@@ -249,6 +261,9 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
 
       {showCreate && (
         <CreateChannel serverId={server.id} defaultType={createType} onClose={handleChannelCreated} />
+      )}
+      {showEditServer && (
+        <EditServer server={server} onClose={() => setShowEditServer(false)} />
       )}
     </div>
   )
