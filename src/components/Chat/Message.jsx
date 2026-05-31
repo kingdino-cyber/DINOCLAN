@@ -41,8 +41,7 @@ function FileAttachment({ url, name, size, type }) {
   return (
     <a
       href={url}
-      target="_blank"
-      rel="noopener noreferrer"
+      download={name || 'file'}
       className="file-attachment"
       onClick={e => e.stopPropagation()}
     >
@@ -279,9 +278,9 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
             <img src={message.imageURL} alt="attachment" className="msg-image"
               onClick={e => { e.stopPropagation(); window.open(message.imageURL, '_blank') }} />
           )}
-          {message.fileURL && (
+          {message.fileData && (
             <FileAttachment
-              url={message.fileURL}
+              url={message.fileData}
               name={message.fileName}
               size={message.fileSize}
               type={message.fileType}

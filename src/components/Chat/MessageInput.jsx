@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { addDoc, collection, serverTimestamp, doc, onSnapshot, updateDoc, setDoc, deleteField } from 'firebase/firestore'
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { db, storage } from '../../firebase'
+import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import { isOperator } from '../../utils/admin'
 
@@ -24,6 +23,7 @@ const EMOJI_CATEGORIES = [
   },
 ]
 
+// Compress images before attaching (keeps Firestore docs small)
 function compressImage(file) {
   return new Promise(resolve => {
     const reader = new FileReader()
@@ -48,32 +48,44 @@ function compressImage(file) {
   })
 }
 
+// Read any file as a base64 data-URL (for non-image attachments)
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload  = e => resolve(e.target.result)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
 function formatFileSize(bytes) {
   if (!bytes) return ''
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024)           return `${bytes} B`
+  if (bytes < 1024 * 1024)   return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
+
+// Max raw size for non-image attachments stored as base64 in Firestore
+const MAX_FILE_BYTES = 700 * 1024   // ~700 KB raw ≈ ~930 KB base64
 
 export default function MessageInput({ serverId, channelId, channelName, server }) {
   const { currentUser } = useAuth()
 
   // ── ALL hooks must come before any conditional return (Rules of Hooks) ────
-  const [text,          setText]          = useState('')
-  const [sending,       setSending]       = useState(false)
-  const [uploading,     setUploading]     = useState(false)
-  const [sendError,     setSendError]     = useState('')
-  const [userData,      setUserData]      = useState(null)
-  const [pendingImage,  setPendingImage]  = useState(null)
-  const [pendingFile,   setPendingFile]   = useState(null)   // { file, name, size, type }
-  const [showEmoji,     setShowEmoji]     = useState(false)
-  const [emojiTab,      setEmojiTab]      = useState(0)
-  const [typingNames,   setTypingNames]   = useState([])
+  const [text,         setText]         = useState('')
+  const [sending,      setSending]      = useState(false)
+  const [sendError,    setSendError]    = useState('')
+  const [userData,     setUserData]     = useState(null)
+  const [pendingImage, setPendingImage] = useState(null)   // base64 data-URL
+  const [pendingFile,  setPendingFile]  = useState(null)   // { dataUrl, name, size, type }
+  const [showEmoji,    setShowEmoji]    = useState(false)
+  const [emojiTab,     setEmojiTab]     = useState(0)
+  const [typingNames,  setTypingNames]  = useState([])
 
-  // Poll state
-  const [showPoll,      setShowPoll]      = useState(false)
-  const [pollQuestion,  setPollQuestion]  = useState('')
-  const [pollOptions,   setPollOptions]   = useState(['', ''])
+  // Poll creation state
+  const [showPoll,     setShowPoll]     = useState(false)
+  const [pollQuestion, setPollQuestion] = useState('')
+  const [pollOptions,  setPollOptions]  = useState(['', ''])
 
   const textareaRef      = useRef(null)
   const fileRef          = useRef(null)
@@ -108,15 +120,13 @@ export default function MessageInput({ serverId, channelId, channelName, server 
   useEffect(() => {
     if (!showEmoji) return
     function handler(e) {
-      if (emojiRef.current && !emojiRef.current.contains(e.target)) {
-        setShowEmoji(false)
-      }
+      if (emojiRef.current && !emojiRef.current.contains(e.target)) setShowEmoji(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [showEmoji])
 
-  // Clear typing status when changing channels or unmounting
+  // Clear typing on channel change / unmount
   useEffect(() => {
     return () => {
       clearTyping()
@@ -163,7 +173,7 @@ export default function MessageInput({ serverId, channelId, channelName, server 
     )
   }
 
-  // ── Helper functions ──────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────
   function autoResize() {
     const el = textareaRef.current
     if (!el) return
@@ -173,14 +183,11 @@ export default function MessageInput({ serverId, channelId, channelName, server 
 
   function insertEmoji(emoji) {
     const el = textareaRef.current
-    if (!el) {
-      setText(t => t + emoji)
-      return
-    }
+    if (!el) { setText(t => t + emoji); return }
     const start = el.selectionStart
-    const end = el.selectionEnd
-    const newText = text.slice(0, start) + emoji + text.slice(end)
-    setText(newText)
+    const end   = el.selectionEnd
+    const next  = text.slice(0, start) + emoji + text.slice(end)
+    setText(next)
     setTimeout(() => {
       el.focus()
       el.setSelectionRange(start + emoji.length, start + emoji.length)
@@ -189,12 +196,11 @@ export default function MessageInput({ serverId, channelId, channelName, server 
   }
 
   async function handlePaste(e) {
-    const items = Array.from(e.clipboardData?.items || [])
+    const items     = Array.from(e.clipboardData?.items || [])
     const imageItem = items.find(i => i.type.startsWith('image/'))
     if (!imageItem) return
     e.preventDefault()
-    const file = imageItem.getAsFile()
-    const dataUrl = await compressImage(file)
+    const dataUrl = await compressImage(imageItem.getAsFile())
     setPendingImage(dataUrl)
     setPendingFile(null)
   }
@@ -205,39 +211,41 @@ export default function MessageInput({ serverId, channelId, channelName, server 
     e.target.value = ''
 
     if (file.type.startsWith('image/')) {
+      // Images: compress then attach as base64
       const dataUrl = await compressImage(file)
       setPendingImage(dataUrl)
       setPendingFile(null)
     } else {
-      if (file.size > 25 * 1024 * 1024) {
-        setSendError('File too large — max 25 MB.')
-        setTimeout(() => setSendError(''), 4000)
+      // Non-image files: read as base64 data-URL (no external upload needed)
+      if (file.size > MAX_FILE_BYTES) {
+        setSendError(`File too large — max ${Math.round(MAX_FILE_BYTES / 1024)} KB. Share a link for bigger files.`)
+        setTimeout(() => setSendError(''), 5000)
         return
       }
-      setPendingFile({ file, name: file.name, size: file.size, type: file.type })
+      const dataUrl = await readFileAsDataURL(file)
+      setPendingFile({ dataUrl, name: file.name, size: file.size, type: file.type })
       setPendingImage(null)
     }
   }
 
   // ── Notify all other server members (fire-and-forget) ────────────────────
-  function notifyMembers(preview, extraFields = {}) {
-    const members = server?.members || []
+  function notifyMembers(preview) {
+    const members    = server?.members || []
     const senderName = userData?.displayName || currentUser.displayName || currentUser.email
     members
       .filter(uid => uid !== currentUser.uid)
       .forEach(uid => {
         addDoc(collection(db, 'users', uid, 'notifications'), {
-          type: 'server',
-          fromUid: currentUser.uid,
-          fromName: senderName,
+          type:        'server',
+          fromUid:     currentUser.uid,
+          fromName:    senderName,
           serverId,
           channelId,
-          serverName: server?.name || 'Server',
-          channelName: channelName || 'channel',
+          serverName:  server?.name   || 'Server',
+          channelName: channelName    || 'channel',
           preview,
-          createdAt: serverTimestamp(),
-          read: false,
-          ...extraFields,
+          createdAt:   serverTimestamp(),
+          read:        false,
         }).catch(() => {})
       })
   }
@@ -248,9 +256,11 @@ export default function MessageInput({ serverId, channelId, channelName, server 
     if ((!content && !pendingImage && !pendingFile) || sending) return
     setSending(true)
     setSendError('')
+
     const savedText   = text
     const imageToSend = pendingImage
     const fileToSend  = pendingFile
+
     // Optimistically clear input
     setText('')
     setPendingImage(null)
@@ -260,24 +270,6 @@ export default function MessageInput({ serverId, channelId, channelName, server 
     clearTimeout(typingTimeoutRef.current)
 
     try {
-      let fileURL  = null
-      let fileName = null
-      let fileSize = null
-      let fileType = null
-
-      // Upload non-image file to Firebase Storage
-      if (fileToSend) {
-        setUploading(true)
-        const path = `attachments/${serverId}/${channelId}/${Date.now()}_${fileToSend.name}`
-        const sRef = storageRef(storage, path)
-        await uploadBytes(sRef, fileToSend.file)
-        fileURL  = await getDownloadURL(sRef)
-        fileName = fileToSend.name
-        fileSize = fileToSend.size
-        fileType = fileToSend.type
-        setUploading(false)
-      }
-
       const senderName = userData?.displayName || currentUser.displayName || currentUser.email
 
       await addDoc(
@@ -290,31 +282,32 @@ export default function MessageInput({ serverId, channelId, channelName, server 
           avatarEmoji: userData?.avatarEmoji || null,
           avatarBg:    userData?.avatarBg    || null,
           isAdmin:     isOperator(currentUser),
-          imageURL:    imageToSend || null,
-          fileURL:     fileURL     || null,
-          fileName:    fileName    || null,
-          fileSize:    fileSize    || null,
-          fileType:    fileType    || null,
+          imageURL:    imageToSend            || null,
+          // Non-image file attachment stored as base64 in Firestore
+          fileData:    fileToSend?.dataUrl   || null,
+          fileName:    fileToSend?.name      || null,
+          fileSize:    fileToSend?.size      || null,
+          fileType:    fileToSend?.type      || null,
           createdAt:   serverTimestamp(),
         }
       )
 
-      // Notify other members
+      // Notify other members (fire-and-forget)
       const preview = content
         ? content.slice(0, 80)
         : imageToSend
           ? '📷 Image'
-          : `📎 ${fileName}`
+          : `📎 ${fileToSend?.name}`
       notifyMembers(preview)
 
     } catch (err) {
       console.error('Failed to send message:', err.code, err.message)
+      // Restore input so the user doesn't lose their message
       setText(savedText)
       setPendingImage(imageToSend)
       setPendingFile(fileToSend)
       setSendError('Failed to send — check your connection and try again.')
       setTimeout(() => setSendError(''), 4000)
-      setUploading(false)
     } finally {
       setSending(false)
     }
@@ -438,7 +431,7 @@ export default function MessageInput({ serverId, channelId, channelName, server 
         </div>
       )}
 
-      {/* ── Typing bar ── */}
+      {/* ── Typing bar — always reserves space so layout never jumps ── */}
       <div className="dm-typing-bar">
         {typingNames.length > 0 && (
           <>
@@ -472,25 +465,15 @@ export default function MessageInput({ serverId, channelId, channelName, server 
           </div>
         )}
 
-        {/* Upload progress indicator */}
-        {uploading && (
-          <div style={{ padding: '4px 16px', fontSize: 12, color: 'var(--accent)' }}>
-            ⏳ Uploading file…
-          </div>
-        )}
-
         <div className="message-input-box">
           <button
             className="attach-btn"
             onClick={() => fileRef.current?.click()}
             title="Attach file"
-          >
-            +
-          </button>
+          >+</button>
           <input
             ref={fileRef}
             type="file"
-            accept="*"
             style={{ display: 'none' }}
             onChange={handleFileSelect}
           />
@@ -510,18 +493,11 @@ export default function MessageInput({ serverId, channelId, channelName, server 
             className="poll-btn"
             onClick={() => { setShowPoll(s => !s); setPollQuestion(''); setPollOptions(['', '']) }}
             title="Create a poll"
-          >
-            📊
-          </button>
+          >📊</button>
 
-          {/* Emoji picker button */}
+          {/* Emoji picker */}
           <div className="emoji-picker-wrap" ref={emojiRef}>
-            <button
-              className="emoji-btn"
-              onClick={() => setShowEmoji(s => !s)}
-              title="Emoji picker"
-            >😊</button>
-
+            <button className="emoji-btn" onClick={() => setShowEmoji(s => !s)} title="Emoji picker">😊</button>
             {showEmoji && (
               <div className="emoji-panel">
                 <div className="emoji-tabs">
@@ -531,9 +507,7 @@ export default function MessageInput({ serverId, channelId, channelName, server 
                       className={`emoji-tab-btn ${emojiTab === i ? 'active' : ''}`}
                       onClick={() => setEmojiTab(i)}
                       title={cat.label}
-                    >
-                      {cat.emojis[0]}
-                    </button>
+                    >{cat.emojis[0]}</button>
                   ))}
                 </div>
                 <div className="emoji-category-label">{EMOJI_CATEGORIES[emojiTab].label}</div>
@@ -544,9 +518,7 @@ export default function MessageInput({ serverId, channelId, channelName, server 
                       className="emoji-item"
                       onClick={() => { insertEmoji(em); setShowEmoji(false) }}
                       title={em}
-                    >
-                      {em}
-                    </button>
+                    >{em}</button>
                   ))}
                 </div>
               </div>
@@ -556,7 +528,7 @@ export default function MessageInput({ serverId, channelId, channelName, server 
           <button
             className={`send-btn ${canSend ? 'active' : ''}`}
             onClick={sendMessage}
-            disabled={!canSend || sending || uploading}
+            disabled={!canSend || sending}
             title="Send message"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
