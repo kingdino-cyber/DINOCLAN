@@ -1,8 +1,9 @@
 import { useEffect, useState, useRef } from 'react'
-import { doc, getDoc } from 'firebase/firestore'
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useProfile } from '../../contexts/ProfileContext'
+import { getGlobalRank, GLOBAL_RANK_TAGS } from '../../utils/admin'
 import Avatar from '../Chat/Avatar'
 
 function FriendChip({ uid }) {
@@ -31,19 +32,33 @@ function FriendChip({ uid }) {
 export default function UserProfileModal({ onStartDM }) {
   const { profileUid, closeProfile } = useProfile()
   const { currentUser } = useAuth()
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(false)
+  const [user, setUser]         = useState(null)
+  const [loading, setLoading]   = useState(false)
+  const [note, setNote]         = useState('')
+  const [noteSaved, setNoteSaved] = useState(false)
   const panelRef = useRef(null)
 
+  // Load the profile user's doc (real-time so rank/about updates show)
   useEffect(() => {
     if (!profileUid) { setUser(null); return }
     setLoading(true)
     setUser(null)
-    getDoc(doc(db, 'users', profileUid)).then(snap => {
+    const unsub = onSnapshot(doc(db, 'users', profileUid), snap => {
       if (snap.exists()) setUser({ uid: snap.id, ...snap.data() })
       setLoading(false)
     })
+    return unsub
   }, [profileUid])
+
+  // Load private note (viewer → subject)
+  useEffect(() => {
+    if (!profileUid || !currentUser?.uid) return
+    const noteRef = doc(db, 'users', currentUser.uid, 'notes', profileUid)
+    getDoc(noteRef).then(snap => {
+      if (snap.exists()) setNote(snap.data().note || '')
+      else setNote('')
+    })
+  }, [profileUid, currentUser?.uid])
 
   // Close when clicking outside the panel
   useEffect(() => {
@@ -55,24 +70,33 @@ export default function UserProfileModal({ onStartDM }) {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [profileUid])
 
+  async function saveNote() {
+    if (!currentUser?.uid || !profileUid) return
+    const noteRef = doc(db, 'users', currentUser.uid, 'notes', profileUid)
+    await setDoc(noteRef, { note, updatedAt: new Date() })
+    setNoteSaved(true)
+    setTimeout(() => setNoteSaved(false), 2000)
+  }
+
   if (!profileUid) return null
 
-  const isSelf = profileUid === currentUser?.uid
-  const friends = user?.friends || []
-  const isOnline = user?.status === 'online'
+  const isSelf    = profileUid === currentUser?.uid
+  const friends   = user?.friends || []
+  const isOnline  = user?.status === 'online'
+  const globalRank = user ? getGlobalRank(user) : 'user'
+  const rankTag   = globalRank !== 'user' ? GLOBAL_RANK_TAGS[globalRank] : null
 
   return (
-    /* Full-screen dimmed backdrop */
     <div style={{
       position: 'fixed', inset: 0, zIndex: 999,
       background: 'rgba(0,0,0,0.55)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
-      {/* Card */}
       <div
         ref={panelRef}
         style={{
-          width: 360, background: 'var(--bg-secondary)',
+          width: 380, maxHeight: '90vh', overflowY: 'auto',
+          background: 'var(--bg-secondary)',
           borderRadius: 16, overflow: 'hidden',
           boxShadow: '0 12px 60px rgba(0,0,0,0.6)',
           animation: 'profilePop 0.18s ease',
@@ -89,7 +113,7 @@ export default function UserProfileModal({ onStartDM }) {
         <div style={{
           height: 72,
           background: 'linear-gradient(135deg, #3a7a28 0%, #1a3a10 100%)',
-          position: 'relative',
+          position: 'relative', flexShrink: 0,
         }}>
           <button
             onClick={closeProfile}
@@ -120,14 +144,20 @@ export default function UserProfileModal({ onStartDM }) {
             )}
           </div>
 
-          {loading && (
-            <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Loading…</p>
-          )}
+          {loading && <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Loading…</p>}
 
           {!loading && user && (<>
 
-            {/* Name row */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+            {/* Name row + rank */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2, flexWrap: 'wrap' }}>
+              {rankTag && (
+                <span style={{
+                  fontSize: 10, fontWeight: 800, letterSpacing: '0.04em',
+                  color: rankTag.color, background: rankTag.bg,
+                  borderRadius: 4, padding: '2px 7px',
+                  border: `1px solid ${rankTag.color}44`,
+                }}>{rankTag.label}</span>
+              )}
               <span style={{ fontSize: 20, fontWeight: 900, color: 'var(--header-primary)' }}>
                 {user.displayName}
               </span>
@@ -138,9 +168,25 @@ export default function UserProfileModal({ onStartDM }) {
                 }}>YOU</span>
               )}
             </div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: isOnline ? 'var(--online)' : 'var(--offline)', marginBottom: 16, textTransform: 'capitalize' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: isOnline ? 'var(--online)' : 'var(--offline)', marginBottom: 14, textTransform: 'capitalize' }}>
               ● {user.status || 'offline'}
             </div>
+
+            {/* About Me section */}
+            {user.aboutMe && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700, marginBottom: 6 }}>
+                  📖 About Me
+                </div>
+                <div style={{
+                  background: 'var(--bg-tertiary)', borderRadius: 8, padding: '10px 12px',
+                  fontSize: 13, color: 'var(--text-normal)', lineHeight: 1.5,
+                  whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                }}>
+                  {user.aboutMe}
+                </div>
+              </div>
+            )}
 
             {/* Stats grid */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
@@ -163,6 +209,41 @@ export default function UserProfileModal({ onStartDM }) {
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {friends.map(fuid => <FriendChip key={fuid} uid={fuid} />)}
                 </div>
+              </div>
+            )}
+
+            {/* Private notes (only shown when viewing someone else's profile) */}
+            {!isSelf && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700, marginBottom: 6 }}>
+                  🔒 My Notes (only you can see this)
+                </div>
+                <textarea
+                  value={note}
+                  onChange={e => setNote(e.target.value)}
+                  placeholder="Add a private note about this person…"
+                  rows={3}
+                  style={{
+                    width: '100%', background: 'var(--bg-tertiary)',
+                    border: '1px solid var(--bg-modifier)', borderRadius: 8,
+                    color: 'var(--text-normal)', fontSize: 13, padding: '8px 10px',
+                    resize: 'vertical', fontFamily: 'inherit', outline: 'none',
+                    transition: 'border-color 0.15s',
+                  }}
+                  onFocus={e => e.target.style.borderColor = 'var(--accent)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--bg-modifier)'}
+                />
+                <button
+                  onClick={saveNote}
+                  style={{
+                    marginTop: 6, padding: '4px 14px', fontSize: 12,
+                    background: noteSaved ? 'var(--success)' : 'var(--bg-active)',
+                    border: 'none', borderRadius: 6, color: '#fff',
+                    cursor: 'pointer', fontWeight: 600, transition: 'background 0.15s',
+                  }}
+                >
+                  {noteSaved ? '✓ Saved!' : 'Save Note'}
+                </button>
               </div>
             )}
 

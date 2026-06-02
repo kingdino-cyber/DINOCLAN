@@ -26,12 +26,13 @@ export function CallProvider({ children }) {
   const [localStream, setLocalStream]       = useState(null)
   const [callError, setCallError]           = useState('')
 
-  const peersRef        = useRef({})   // { uid: RTCPeerConnection }
-  const localStreamRef  = useRef(null)
-  const activeCallIdRef = useRef(null)
-  const signalsUnsubRef = useRef(null)
-  const callDocUnsubRef = useRef(null)
-  const stopRingRef     = useRef(null)
+  const peersRef             = useRef({})          // { uid: RTCPeerConnection }
+  const localStreamRef       = useRef(null)
+  const activeCallIdRef      = useRef(null)
+  const signalsUnsubRef      = useRef(null)
+  const callDocUnsubRef      = useRef(null)
+  const stopRingRef          = useRef(null)
+  const processedSignalsRef  = useRef(new Set())   // tracks signal IDs already handled
 
   // ── Listen for incoming DM calls ──────────────────────────────────────────
   useEffect(() => {
@@ -190,6 +191,11 @@ export function CallProvider({ children }) {
     signalsUnsubRef.current = onSnapshot(q, async snap => {
       for (const change of snap.docChanges()) {
         if (change.type !== 'added') continue
+        const sigId = change.doc.id
+        // Skip signals we've already processed — Firestore re-delivers ALL docs
+        // as 'added' on reconnect, which would corrupt peer connection state
+        if (processedSignalsRef.current.has(sigId)) continue
+        processedSignalsRef.current.add(sigId)
         const sig = change.doc.data()
         const fromUid = sig.from
 
@@ -238,13 +244,43 @@ export function CallProvider({ children }) {
 
   function watchCallDoc(callId) {
     if (callDocUnsubRef.current) callDocUnsubRef.current()
-    callDocUnsubRef.current = onSnapshot(doc(db, 'calls', callId), snap => {
+    // Track which participant UIDs we've already connected to, to avoid re-offering
+    const connectedUids = new Set()
+
+    callDocUnsubRef.current = onSnapshot(doc(db, 'calls', callId), async snap => {
       if (!snap.exists() || snap.data().status === 'ended') {
         playCallEnd()
         cleanupCall()
         return
       }
-      setActiveCall(prev => ({ ...prev, ...snap.data(), callId }))
+      const data = snap.data()
+      setActiveCall(prev => ({ ...prev, ...data, callId }))
+
+      // Detect new participants and offer to them if we don't already have a connection
+      const participants = data.participants || []
+      for (const p of participants) {
+        if (p.uid === currentUser.uid) continue            // skip self
+        if (connectedUids.has(p.uid)) continue            // already connected
+        if (peersRef.current[p.uid]) {
+          // Peer object exists — mark as connected so we don't re-offer
+          connectedUids.add(p.uid)
+          continue
+        }
+        // New participant — send them an offer
+        connectedUids.add(p.uid)
+        try {
+          const peer = makePeer(p.uid, callId)
+          const offer = await peer.createOffer()
+          await peer.setLocalDescription(offer)
+          await addDoc(collection(db, 'calls', callId, 'signals'), {
+            from: currentUser.uid, to: p.uid,
+            type: 'offer', data: JSON.stringify(offer),
+            createdAt: serverTimestamp(),
+          })
+        } catch (err) {
+          console.warn('Could not offer to new participant', p.uid, err)
+        }
+      }
     })
   }
 
@@ -425,6 +461,7 @@ export function CallProvider({ children }) {
   function cleanupCall() {
     Object.values(peersRef.current).forEach(p => { try { p.close() } catch (_) {} })
     peersRef.current = {}
+    processedSignalsRef.current.clear()
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(t => t.stop())
       localStreamRef.current = null

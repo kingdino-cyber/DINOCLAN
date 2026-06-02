@@ -1,8 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
-import { addDoc, collection, serverTimestamp, doc, onSnapshot, updateDoc, setDoc, deleteField } from 'firebase/firestore'
+import {
+  addDoc, collection, serverTimestamp, doc, onSnapshot,
+  updateDoc, setDoc, deleteField, getDocs, getDoc, increment,
+} from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
-import { isOperator } from '../../utils/admin'
+import { isOperator, getServerRank, getGlobalRank, countSwears } from '../../utils/admin'
 
 const EMOJI_CATEGORIES = [
   {
@@ -72,15 +75,16 @@ export default function MessageInput({ serverId, channelId, channelName, server 
   const { currentUser } = useAuth()
 
   // ── ALL hooks must come before any conditional return (Rules of Hooks) ────
-  const [text,         setText]         = useState('')
-  const [sending,      setSending]      = useState(false)
-  const [sendError,    setSendError]    = useState('')
-  const [userData,     setUserData]     = useState(null)
-  const [pendingImage, setPendingImage] = useState(null)   // base64 data-URL
-  const [pendingFile,  setPendingFile]  = useState(null)   // { dataUrl, name, size, type }
-  const [showEmoji,    setShowEmoji]    = useState(false)
-  const [emojiTab,     setEmojiTab]     = useState(0)
-  const [typingNames,  setTypingNames]  = useState([])
+  const [text,            setText]            = useState('')
+  const [sending,         setSending]         = useState(false)
+  const [sendError,       setSendError]       = useState('')
+  const [userData,        setUserData]        = useState(null)
+  const [pendingImage,    setPendingImage]    = useState(null)   // base64 data-URL
+  const [pendingFile,     setPendingFile]     = useState(null)   // { dataUrl, name, size, type }
+  const [showEmoji,       setShowEmoji]       = useState(false)
+  const [emojiTab,        setEmojiTab]        = useState(0)
+  const [typingNames,     setTypingNames]     = useState([])
+  const [swearJarEnabled, setSwearJarEnabled] = useState(false)
 
   // Poll creation state
   const [showPoll,     setShowPoll]     = useState(false)
@@ -101,12 +105,14 @@ export default function MessageInput({ serverId, channelId, channelName, server 
     return unsub
   }, [currentUser?.uid])
 
-  // Watch channel doc for other people's typing status
+  // Watch channel doc for typing status + swear jar enabled
   useEffect(() => {
     if (!serverId || !channelId || !currentUser?.uid) return
     const unsub = onSnapshot(doc(db, 'servers', serverId, 'channels', channelId), snap => {
-      if (!snap.exists()) { setTypingNames([]); return }
-      const typing = snap.data()?.typing || {}
+      if (!snap.exists()) { setTypingNames([]); setSwearJarEnabled(false); return }
+      const data = snap.data()
+      setSwearJarEnabled(!!data?.swearJarEnabled)
+      const typing = data?.typing || {}
       const now = Date.now()
       const active = Object.entries(typing)
         .filter(([uid, val]) => uid !== currentUser.uid && (now - (val?.at || 0)) < 5000)
@@ -211,12 +217,10 @@ export default function MessageInput({ serverId, channelId, channelName, server 
     e.target.value = ''
 
     if (file.type.startsWith('image/')) {
-      // Images: compress then attach as base64
       const dataUrl = await compressImage(file)
       setPendingImage(dataUrl)
       setPendingFile(null)
     } else {
-      // Non-image files: read as base64 data-URL (no external upload needed)
       if (file.size > MAX_FILE_BYTES) {
         setSendError(`File too large — max ${Math.round(MAX_FILE_BYTES / 1024)} KB. Share a link for bigger files.`)
         setTimeout(() => setSendError(''), 5000)
@@ -250,9 +254,79 @@ export default function MessageInput({ serverId, channelId, channelName, server 
       })
   }
 
+  // ── Post a bot message (swear jar) ────────────────────────────────────────
+  async function postBotMessage(content, botName = 'swear jar') {
+    await addDoc(
+      collection(db, 'servers', serverId, 'channels', channelId, 'messages'),
+      {
+        type:      'bot',
+        botName,
+        content,
+        createdAt: serverTimestamp(),
+      }
+    )
+  }
+
+  // ── Swear jar: record swear and post bot message ──────────────────────────
+  async function handleSwearJar(messageContent) {
+    if (!swearJarEnabled || !messageContent) return
+    const n = countSwears(messageContent)
+    if (n === 0) return
+    const senderName = userData?.displayName || currentUser.displayName || currentUser.email
+    const countRef = doc(db, 'servers', serverId, 'channels', channelId, 'swearCounts', currentUser.uid)
+    // Upsert: create doc if missing, increment count otherwise
+    await setDoc(countRef, {
+      uid: currentUser.uid,
+      displayName: senderName,
+      count: increment(n),
+    }, { merge: true })
+    // Read the updated total
+    const snap = await getDoc(countRef)
+    const total = snap.exists() ? (snap.data().count || n) : n
+    await postBotMessage(
+      `🫙 ${senderName} now has ${total} swear${total === 1 ? '' : 's'}.`
+    )
+  }
+
+  // ── /leaderboard command ──────────────────────────────────────────────────
+  async function handleLeaderboard() {
+    try {
+      const countsSnap = await getDocs(
+        collection(db, 'servers', serverId, 'channels', channelId, 'swearCounts')
+      )
+      const entries = countsSnap.docs
+        .map(d => d.data())
+        .sort((a, b) => (b.count || 0) - (a.count || 0))
+
+      let leaderboard
+      if (entries.length === 0) {
+        leaderboard = 'No swears recorded yet!'
+      } else {
+        const medals = ['🥇', '🥈', '🥉']
+        leaderboard = entries
+          .map((e, i) => `${medals[i] || `${i + 1}.`} ${e.displayName}: ${e.count || 0} swear${(e.count || 0) === 1 ? '' : 's'}`)
+          .join('\n')
+      }
+      await postBotMessage(`🤬 Swear Jar Leaderboard 🫙\n\n${leaderboard}`)
+    } catch (err) {
+      console.error('Leaderboard error:', err)
+    }
+  }
+
   // ── Send regular message ──────────────────────────────────────────────────
   async function sendMessage() {
     const content = text.trim()
+
+    // /leaderboard slash command
+    if (content.toLowerCase() === '/leaderboard' && serverId && channelId) {
+      setText('')
+      if (textareaRef.current) textareaRef.current.style.height = 'auto'
+      clearTyping()
+      clearTimeout(typingTimeoutRef.current)
+      await handleLeaderboard()
+      return
+    }
+
     if ((!content && !pendingImage && !pendingFile) || sending) return
     setSending(true)
     setSendError('')
@@ -270,7 +344,9 @@ export default function MessageInput({ serverId, channelId, channelName, server 
     clearTimeout(typingTimeoutRef.current)
 
     try {
-      const senderName = userData?.displayName || currentUser.displayName || currentUser.email
+      const senderName  = userData?.displayName || currentUser.displayName || currentUser.email
+      const serverRank  = getServerRank(server, currentUser.uid)
+      const globalRank  = getGlobalRank({ ...userData, email: currentUser.email })
 
       await addDoc(
         collection(db, 'servers', serverId, 'channels', channelId, 'messages'),
@@ -282,8 +358,9 @@ export default function MessageInput({ serverId, channelId, channelName, server 
           avatarEmoji: userData?.avatarEmoji || null,
           avatarBg:    userData?.avatarBg    || null,
           isAdmin:     isOperator(currentUser),
+          serverRank,
+          globalRank,
           imageURL:    imageToSend            || null,
-          // Non-image file attachment stored as base64 in Firestore
           fileData:    fileToSend?.dataUrl   || null,
           fileName:    fileToSend?.name      || null,
           fileSize:    fileToSend?.size      || null,
@@ -291,6 +368,11 @@ export default function MessageInput({ serverId, channelId, channelName, server 
           createdAt:   serverTimestamp(),
         }
       )
+
+      // Swear jar detection (fire-and-forget)
+      if (content && swearJarEnabled) {
+        handleSwearJar(content).catch(() => {})
+      }
 
       // Notify other members (fire-and-forget)
       const preview = content
@@ -302,7 +384,6 @@ export default function MessageInput({ serverId, channelId, channelName, server 
 
     } catch (err) {
       console.error('Failed to send message:', err.code, err.message)
-      // Restore input so the user doesn't lose their message
       setText(savedText)
       setPendingImage(imageToSend)
       setPendingFile(fileToSend)
@@ -376,6 +457,16 @@ export default function MessageInput({ serverId, channelId, channelName, server 
         </div>
       )}
 
+      {/* ── Swear jar indicator ── */}
+      {swearJarEnabled && (
+        <div style={{
+          padding: '2px 16px', fontSize: 11, color: 'var(--text-muted)',
+          display: 'flex', alignItems: 'center', gap: 4,
+        }}>
+          🫙 Swear Jar is active · type <code style={{ background: 'var(--bg-tertiary)', padding: '0 4px', borderRadius: 3 }}>/leaderboard</code> to see the rankings
+        </div>
+      )}
+
       {/* ── Poll creation panel ── */}
       {showPoll && (
         <div className="poll-create-panel">
@@ -431,7 +522,7 @@ export default function MessageInput({ serverId, channelId, channelName, server 
         </div>
       )}
 
-      {/* ── Typing bar — always reserves space so layout never jumps ── */}
+      {/* ── Typing bar ── */}
       <div className="dm-typing-bar">
         {typingNames.length > 0 && (
           <>

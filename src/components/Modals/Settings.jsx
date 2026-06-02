@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react'
-import { doc, updateDoc } from 'firebase/firestore'
+import { useState, useRef, useEffect } from 'react'
+import { doc, updateDoc, getDoc } from 'firebase/firestore'
 import { updateProfile } from 'firebase/auth'
 import { db, auth } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -50,6 +50,7 @@ export default function Settings({ onClose }) {
 
   // Profile state
   const [displayName,    setDisplayName]    = useState(currentUser?.displayName || '')
+  const [aboutMe,        setAboutMe]        = useState('')
   const [selectedAvatar, setSelectedAvatar] = useState(null)
   const [previewUrl,     setPreviewUrl]     = useState(null)
   const [uploading,      setUploading]      = useState(false)
@@ -66,6 +67,14 @@ export default function Settings({ onClose }) {
   const [pwSaved,     setPwSaved]     = useState(false)
   const [pwError,     setPwError]     = useState('')
   const [verifySent,  setVerifySent]  = useState(false)
+
+  // Load existing About Me on mount
+  useEffect(() => {
+    if (!currentUser?.uid) return
+    getDoc(doc(db, 'users', currentUser.uid)).then(snap => {
+      if (snap.exists()) setAboutMe(snap.data().aboutMe || '')
+    })
+  }, [currentUser?.uid])
 
   // ── Profile handlers ────────────────────────────────────────────────────────
   async function handleFileChange(e) {
@@ -86,7 +95,7 @@ export default function Settings({ onClose }) {
     setSaving(true); setProfileError('')
     try {
       await updateProfile(auth.currentUser, { displayName: displayName.trim() })
-      const updates = { displayName: displayName.trim() }
+      const updates = { displayName: displayName.trim(), aboutMe: aboutMe.slice(0, 500) }
       if (previewUrl) {
         updates.photoURL     = previewUrl
         updates.avatarEmoji  = null
@@ -186,6 +195,20 @@ export default function Settings({ onClose }) {
               <form onSubmit={handleSaveProfile}>
                 <label className="settings-label">Display Name</label>
                 <input className="settings-input" value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Your name" maxLength={32} />
+
+                <label className="settings-label">About Me</label>
+                <textarea
+                  className="settings-input"
+                  value={aboutMe}
+                  onChange={e => setAboutMe(e.target.value)}
+                  placeholder="Tell people about yourself… (500 characters max)"
+                  maxLength={500}
+                  rows={4}
+                  style={{ resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
+                />
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'right', marginTop: 2 }}>
+                  {aboutMe.length}/500
+                </div>
 
                 <label className="settings-label">Or choose a Dino Avatar 🦕</label>
                 <div className="avatar-grid">

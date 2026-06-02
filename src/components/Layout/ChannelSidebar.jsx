@@ -5,7 +5,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
-import { isAdmin } from '../../utils/admin'
+import { isAdmin, getServerRank, getGlobalRank, serverRankLevel, globalRankLevel } from '../../utils/admin'
 import CreateChannel from '../Modals/CreateChannel'
 import EditServer from '../Modals/EditServer'
 import UserPanel from './UserPanel'
@@ -98,6 +98,71 @@ function VoiceChannelItem({ ch, isActive, onClick, canAdmin, onDelete }) {
   )
 }
 
+/* ── Customise channel popup (swear jar toggle) ─────────────────────────────── */
+function CustomiseModal({ ch, serverId, onClose }) {
+  const [swearJarEnabled, setSwearJarEnabled] = useState(!!ch.swearJarEnabled)
+  const [saving, setSaving] = useState(false)
+
+  async function handleSubmit() {
+    setSaving(true)
+    try {
+      await updateDoc(doc(db, 'servers', serverId, 'channels', ch.id), {
+        swearJarEnabled,
+      })
+      onClose()
+    } catch (err) {
+      console.error('Customise save failed:', err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: 380 }}>
+        <h2 style={{ marginBottom: 6 }}>⚙️ Customise #{ch.name}</h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 20 }}>
+          Configure special features for this channel.
+        </p>
+
+        <div style={{
+          background: 'var(--bg-tertiary)', borderRadius: 10, padding: '14px 16px',
+          marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14,
+        }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, color: 'var(--header-primary)', marginBottom: 2 }}>🫙 Swear Jar</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              Track swear words per user. Type <code style={{ background: 'var(--bg-secondary)', padding: '0 4px', borderRadius: 3 }}>/leaderboard</code> to see rankings.
+            </div>
+          </div>
+          {/* Toggle switch */}
+          <div
+            onClick={() => setSwearJarEnabled(v => !v)}
+            style={{
+              width: 44, height: 24, borderRadius: 12, flexShrink: 0, cursor: 'pointer',
+              background: swearJarEnabled ? 'var(--accent)' : 'var(--bg-modifier)',
+              position: 'relative', transition: 'background 0.2s',
+            }}
+          >
+            <div style={{
+              position: 'absolute', top: 3, left: swearJarEnabled ? 23 : 3,
+              width: 18, height: 18, borderRadius: '50%',
+              background: '#fff', transition: 'left 0.2s',
+            }} />
+          </div>
+        </div>
+
+        <div className="modal-actions">
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn-confirm" onClick={handleSubmit} disabled={saving}>
+            {saving ? 'Saving…' : 'Submit'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main sidebar ──────────────────────────────────────────────────────────────
 export default function ChannelSidebar({ server, activeChannelId, onSelectChannel }) {
   const { currentUser } = useAuth()
@@ -106,9 +171,21 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
   const [createType,      setCreateType]      = useState('text')
   const [copied,          setCopied]          = useState(false)
   const [showEditServer,  setShowEditServer]  = useState(false)
+  const [customiseChannel, setCustomiseChannel] = useState(null)  // channel being customised
   const fileRef = useRef(null)
 
   const canAdmin = isAdmin(currentUser, server)
+
+  // Who can customise a channel: server rank ≥ operator OR global rank ≥ operator
+  // We don't have the full user doc here so use isAdmin as a proxy for now
+  function canCustomise(server) {
+    if (!currentUser) return false
+    if (isAdmin(currentUser, server)) return true
+    // We'll trust the server prop which has memberRanks
+    const serverRank = getServerRank(server, currentUser.uid)
+    return serverRankLevel(serverRank) >= 1  // operator or above
+  }
+  const showCustomiseBtn = canCustomise(server)
 
   useEffect(() => {
     if (!server?.id) return
@@ -219,6 +296,17 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
           >
             <span className="channel-hash">#</span>
             <span style={{ flex: 1 }}>{ch.name}</span>
+            {ch.swearJarEnabled && (
+              <span title="Swear Jar active" style={{ fontSize: 13, opacity: 0.7 }}>🫙</span>
+            )}
+            {showCustomiseBtn && (
+              <button
+                className="channel-delete-btn"
+                onClick={e => { e.stopPropagation(); setCustomiseChannel(ch) }}
+                title="Customise channel"
+                style={{ opacity: 0.7 }}
+              >⚙️</button>
+            )}
             {canAdmin && (
               <button
                 className="channel-delete-btn"
@@ -264,6 +352,13 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
       )}
       {showEditServer && (
         <EditServer server={server} onClose={() => setShowEditServer(false)} />
+      )}
+      {customiseChannel && (
+        <CustomiseModal
+          ch={customiseChannel}
+          serverId={server.id}
+          onClose={() => setCustomiseChannel(null)}
+        />
       )}
     </div>
   )

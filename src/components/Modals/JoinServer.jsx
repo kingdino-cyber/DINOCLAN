@@ -1,5 +1,8 @@
 import { useState } from 'react'
-import { updateDoc, doc, arrayUnion, collection, query, where, getDocs } from 'firebase/firestore'
+import {
+  updateDoc, doc, arrayUnion, collection, query, where,
+  getDocs, addDoc, serverTimestamp, orderBy, limit,
+} from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import { DINO_EMOJIS, CODE_LENGTH } from '../../utils/dinoCode'
@@ -64,6 +67,32 @@ export default function JoinServer({ onClose }) {
       }
 
       await updateDoc(serverDoc.ref, { members: arrayUnion(currentUser.uid) })
+
+      // Activity tracker: post a system message to the first text channel
+      try {
+        const channelsSnap = await getDocs(
+          query(
+            collection(db, 'servers', serverDoc.id, 'channels'),
+            orderBy('position', 'asc'),
+            limit(10)
+          )
+        )
+        const firstText = channelsSnap.docs.find(d => (d.data().type || 'text') === 'text')
+        if (firstText) {
+          const joinerName = currentUser.displayName || currentUser.email || 'Someone'
+          await addDoc(
+            collection(db, 'servers', serverDoc.id, 'channels', firstText.id, 'messages'),
+            {
+              type:      'system',
+              content:   `👋 ${joinerName} joined the server.`,
+              createdAt: serverTimestamp(),
+            }
+          )
+        }
+      } catch (_) {
+        // Activity message is best-effort — don't block the join on failure
+      }
+
       onClose(serverDoc.id)
     } catch (err) {
       setError('Something went wrong. Try again.')

@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react'
 import {
   collection, query, where, onSnapshot, addDoc,
   updateDoc, doc, serverTimestamp, getDocs, getDoc, arrayUnion, arrayRemove,
+  orderBy, limit,
 } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
+import { isOperator, getGlobalRank, GLOBAL_RANK_TAGS } from '../../utils/admin'
 import Avatar from '../Chat/Avatar'
 
 /* ── Helpers ── */
@@ -175,6 +177,15 @@ export default function FriendsPanel({ onStartDM }) {
   const [statsStatus, setStatsStatus]   = useState('')
   const [statsLoading, setStatsLoading] = useState(false)
 
+  // ranks tab state (admin only)
+  const [rankEmail, setRankEmail]       = useState('')
+  const [rankResult, setRankResult]     = useState(null)
+  const [rankStatus, setRankStatus]     = useState('')
+  const [rankLoading, setRankLoading]   = useState(false)
+  const [rankSaving, setRankSaving]     = useState(false)
+
+  const isGlobalAdmin = isOperator(currentUser)
+
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'users', currentUser.uid), snap => {
       if (snap.exists()) setUserData({ uid: snap.id, ...snap.data() })
@@ -213,6 +224,28 @@ export default function FriendsPanel({ onStartDM }) {
   async function acceptServerInvite(inv) {
     await updateDoc(doc(db, 'serverInvites', inv.id), { status: 'accepted' })
     await updateDoc(doc(db, 'servers', inv.serverId), { members: arrayUnion(currentUser.uid) })
+    // Activity tracker — post system message to first text channel
+    try {
+      const channelsSnap = await getDocs(
+        query(
+          collection(db, 'servers', inv.serverId, 'channels'),
+          orderBy('position', 'asc'),
+          limit(10)
+        )
+      )
+      const firstText = channelsSnap.docs.find(d => (d.data().type || 'text') === 'text')
+      if (firstText) {
+        const joinerName = currentUser.displayName || currentUser.email || 'Someone'
+        await addDoc(
+          collection(db, 'servers', inv.serverId, 'channels', firstText.id, 'messages'),
+          {
+            type:      'system',
+            content:   `👋 ${joinerName} joined the ${inv.kind === 'group' ? 'group' : 'server'}.`,
+            createdAt: serverTimestamp(),
+          }
+        )
+      }
+    } catch (_) {}
   }
   async function declineServerInvite(inv) {
     await updateDoc(doc(db, 'serverInvites', inv.id), { status: 'declined' })
@@ -302,6 +335,43 @@ export default function FriendsPanel({ onStartDM }) {
     }
   }
 
+  async function searchRankUser() {
+    const email = rankEmail.trim().toLowerCase()
+    if (!email) return
+    setRankLoading(true)
+    setRankResult(null)
+    setRankStatus('')
+    try {
+      const snap = await getDocs(query(collection(db, 'users'), where('email', '==', email)))
+      if (snap.empty) {
+        setRankStatus('No user found with that email. 🦕')
+      } else {
+        const d = snap.docs[0]
+        setRankResult({ uid: d.id, ...d.data() })
+      }
+    } catch {
+      setRankStatus('Search failed. Try again.')
+    } finally {
+      setRankLoading(false)
+    }
+  }
+
+  async function saveGlobalRank(uid, newRank) {
+    // Admin rank is EXCLUSIVELY for bohlehsaurus7@gmail.com — cannot be assigned
+    if (newRank === 'admin') return
+    setRankSaving(true)
+    try {
+      await updateDoc(doc(db, 'users', uid), { globalRank: newRank })
+      setRankResult(prev => ({ ...prev, globalRank: newRank }))
+      setRankStatus(`✅ Rank updated to ${newRank}!`)
+      setTimeout(() => setRankStatus(''), 3000)
+    } catch {
+      setRankStatus('Failed to update rank.')
+    } finally {
+      setRankSaving(false)
+    }
+  }
+
   return (
     <div className="friends-panel">
       <div className="friends-header">
@@ -325,6 +395,11 @@ export default function FriendsPanel({ onStartDM }) {
         <button className={`friends-tab ${tab === 'stats' ? 'active' : ''}`} onClick={() => setTab('stats')}>
           🔍 Stats
         </button>
+        {isGlobalAdmin && (
+          <button className={`friends-tab ${tab === 'ranks' ? 'active' : ''}`} onClick={() => setTab('ranks')}>
+            👑 Ranks
+          </button>
+        )}
       </div>
 
       <div className="friends-body">
@@ -435,6 +510,74 @@ export default function FriendsPanel({ onStartDM }) {
                 onStartDM={onStartDM}
                 currentUser={currentUser}
               />
+            )}
+          </div>
+        )}
+
+        {/* ── Ranks tab (admin only) ── */}
+        {tab === 'ranks' && isGlobalAdmin && (
+          <div style={{ padding: 16 }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 12 }}>
+              Search a user by email to manage their global rank. Admin rank is reserved exclusively for bohlehsaurus7@gmail.com and cannot be assigned.
+            </p>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <input
+                className="settings-input"
+                style={{ flex: 1 }}
+                value={rankEmail}
+                onChange={e => { setRankEmail(e.target.value); setRankResult(null); setRankStatus('') }}
+                placeholder="Enter email address…"
+                onKeyDown={e => e.key === 'Enter' && searchRankUser()}
+              />
+              <button className="btn-confirm" onClick={searchRankUser} disabled={rankLoading || !rankEmail.trim()}>
+                {rankLoading ? '…' : 'Search'}
+              </button>
+            </div>
+            {rankStatus && (
+              <p style={{ fontSize: 13, color: rankStatus.startsWith('✅') ? 'var(--success)' : 'var(--text-muted)', marginBottom: 8 }}>
+                {rankStatus}
+              </p>
+            )}
+            {rankResult && (
+              <div style={{ background: 'var(--bg-tertiary)', borderRadius: 10, padding: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                  <Avatar user={rankResult} size={40} showStatus={false} />
+                  <div>
+                    <div style={{ fontWeight: 700, color: 'var(--header-primary)' }}>{rankResult.displayName}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{rankResult.email}</div>
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+                  Set Global Rank
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {['user', 'operator', 'moderator'].map(rank => {
+                    const currentRank = getGlobalRank(rankResult)
+                    const isActive = currentRank === rank
+                    const tag = GLOBAL_RANK_TAGS[rank]
+                    return (
+                      <button
+                        key={rank}
+                        onClick={() => saveGlobalRank(rankResult.uid, rank)}
+                        disabled={rankSaving || isActive}
+                        style={{
+                          padding: '6px 14px', borderRadius: 6, fontSize: 13, fontWeight: 700,
+                          cursor: isActive ? 'default' : 'pointer',
+                          border: isActive ? `2px solid ${tag?.color || 'var(--accent)'}` : '2px solid var(--bg-modifier)',
+                          background: isActive ? (tag?.bg || 'var(--bg-active)') : 'var(--bg-secondary)',
+                          color: isActive ? (tag?.color || 'var(--accent)') : 'var(--text-normal)',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        {rank === 'user' && '👤 User'}
+                        {rank === 'operator' && '🔵 Operator'}
+                        {rank === 'moderator' && '🔴 Moderator'}
+                        {isActive && ' ✓'}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
             )}
           </div>
         )}

@@ -1,16 +1,38 @@
 import { useEffect, useState } from 'react'
-import { doc, onSnapshot, updateDoc, arrayRemove, arrayUnion } from 'firebase/firestore'
+import { doc, onSnapshot, updateDoc, arrayRemove, arrayUnion, deleteField } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
-import { isAdmin, isOperator } from '../../utils/admin'
+import {
+  isAdmin, isOperator,
+  getServerRank, getGlobalRank,
+  canManage, serverRankLevel, globalRankLevel,
+  SERVER_RANK_TAGS, GLOBAL_RANK_TAGS,
+} from '../../utils/admin'
 import { useProfile } from '../../contexts/ProfileContext'
 import Avatar from '../Chat/Avatar'
 
-function MemberRow({ uid, serverId, server, canKick, isViewingServer, isHost }) {
+/* ── Small rank badge chip ── */
+function RankChip({ rank, type = 'server' }) {
+  const tags = type === 'global' ? GLOBAL_RANK_TAGS : SERVER_RANK_TAGS
+  const info = tags[rank]
+  if (!info) return null
+  return (
+    <span style={{
+      fontSize: 9, fontWeight: 800, letterSpacing: '0.04em',
+      color: info.color, background: info.bg,
+      borderRadius: 3, padding: '1px 5px',
+      border: `1px solid ${info.color}44`,
+      flexShrink: 0,
+    }}>{info.label}</span>
+  )
+}
+
+function MemberRow({ uid, serverId, server, myServerRank, myGlobalRank, isViewingServer }) {
   const { openProfile } = useProfile()
   const { currentUser } = useAuth()
   const [user, setUser] = useState(null)
   const [action, setAction] = useState(null)
+  const [showRankMenu, setShowRankMenu] = useState(false)
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'users', uid), snap => {
@@ -41,25 +63,49 @@ function MemberRow({ uid, serverId, server, canKick, isViewingServer, isHost }) 
     })
   }
 
+  async function setServerRankFor(rank) {
+    setShowRankMenu(false)
+    if (rank === 'member') {
+      await updateDoc(doc(db, 'servers', serverId), {
+        [`memberRanks.${uid}`]: deleteField(),
+      })
+    } else {
+      await updateDoc(doc(db, 'servers', serverId), {
+        [`memberRanks.${uid}`]: rank,
+      })
+    }
+  }
+
   if (!user) return null
-  const isSelf = uid === currentUser?.uid
+  const isSelf  = uid === currentUser?.uid
   const isOwner = server?.ownerId === uid
-  const isOp = isOperator(user)
+
+  const theirServerRank = getServerRank(server, uid)
+  const theirGlobalRank = getGlobalRank(user)
+
+  // Can I manage this person?
+  const iManage = !isSelf && !isOwner && canManage(myServerRank, myGlobalRank, theirServerRank, theirGlobalRank)
+
+  // Can kick/ban: need server rank ≥ moderator or global rank ≥ moderator, and must outrank target
+  const myEffectiveLevel = Math.max(serverRankLevel(myServerRank), globalRankLevel(myGlobalRank))
+  const canKick = iManage && myEffectiveLevel >= 2   // moderator or above
+
   const isEditor = server?.editors?.includes(uid)
+  const isHost = server?.ownerId === currentUser?.uid || isOperator(currentUser)
 
   return (
-    <div className="member-item" style={{ justifyContent: 'space-between' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+    <div className="member-item" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
         <Avatar user={user} size={32} showStatus />
         <div style={{ minWidth: 0 }}>
-          {isOp && <div className="member-admin-tag">ADMIN</div>}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+            {/* Global rank chip */}
+            {theirGlobalRank !== 'user' && <RankChip rank={theirGlobalRank} type="global" />}
+            {/* Server rank chip */}
+            {theirServerRank !== 'member' && <RankChip rank={theirServerRank} type="server" />}
             <span
               className="member-name"
-              style={{
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                cursor: 'pointer',
-              }}
+              style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }}
               onClick={() => openProfile(uid)}
               title={`View ${user.displayName}'s profile`}
             >
@@ -72,7 +118,37 @@ function MemberRow({ uid, serverId, server, canKick, isViewingServer, isHost }) 
           </div>
         </div>
       </div>
-      <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+
+      <div style={{ display: 'flex', gap: 2, flexShrink: 0, position: 'relative' }}>
+        {/* Rank management button (shown to anyone who can manage this person) */}
+        {iManage && !isOwner && (
+          <div style={{ position: 'relative' }}>
+            <button
+              className="kick-btn"
+              onClick={() => setShowRankMenu(m => !m)}
+              title="Manage rank"
+              style={{ fontSize: 13 }}
+            >⚙️</button>
+            {showRankMenu && (
+              <div className="rank-menu" onMouseLeave={() => setShowRankMenu(false)}>
+                <div className="rank-menu-title">Set Server Rank</div>
+                {['member', 'operator', 'moderator'].map(r => (
+                  <button
+                    key={r}
+                    className={`rank-menu-item ${theirServerRank === r ? 'active' : ''}`}
+                    onClick={() => setServerRankFor(r)}
+                  >
+                    {r === 'member'    && '👤 Member'}
+                    {r === 'operator'  && '🔵 Operator'}
+                    {r === 'moderator' && '🔴 Moderator'}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Editor toggle (for viewing servers) */}
         {isViewingServer && isHost && !isSelf && !isOwner && (
           <button
             className={`kick-btn ${isEditor ? 'confirm' : ''}`}
@@ -83,7 +159,9 @@ function MemberRow({ uid, serverId, server, canKick, isViewingServer, isHost }) 
             {isEditor ? '✏️' : '🔒'}
           </button>
         )}
-        {canKick && !isSelf && !isOwner && (
+
+        {/* Kick / ban buttons */}
+        {canKick && (
           <>
             <button
               className={`kick-btn ${action === 'kick' ? 'confirm' : ''}`}
@@ -111,14 +189,28 @@ function MemberRow({ uid, serverId, server, canKick, isViewingServer, isHost }) 
 
 export default function MembersSidebar({ serverId, server, memberIds, onStartDM }) {
   const { currentUser } = useAuth()
-  const canKick = isAdmin(currentUser, server)
+  const [myUserData, setMyUserData] = useState(null)
+
+  useEffect(() => {
+    if (!currentUser?.uid) return
+    const unsub = onSnapshot(doc(db, 'users', currentUser.uid), snap => {
+      if (snap.exists()) setMyUserData({ uid: snap.id, ...snap.data() })
+    })
+    return unsub
+  }, [currentUser?.uid])
+
+  const myServerRank = getServerRank(server, currentUser?.uid)
+  const myGlobalRank = getGlobalRank(myUserData ? { ...myUserData, email: currentUser?.email } : { email: currentUser?.email })
   const isViewingServer = server?.type === 'viewing'
-  const isHost = server?.ownerId === currentUser?.uid || isAdmin(currentUser, server)
 
   return (
     <div className="members-sidebar">
       <h3>Members — {memberIds.length}</h3>
-      {canKick && <div className="admin-badge">⚡ Operator</div>}
+      {myGlobalRank !== 'user' && (
+        <div className="admin-badge" style={{ background: GLOBAL_RANK_TAGS[myGlobalRank]?.bg, color: GLOBAL_RANK_TAGS[myGlobalRank]?.color }}>
+          ⚡ {GLOBAL_RANK_TAGS[myGlobalRank]?.label}
+        </div>
+      )}
       {isViewingServer && <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '2px 8px 6px' }}>👁️ Viewing server</div>}
       {memberIds.map(uid => (
         <MemberRow
@@ -126,9 +218,9 @@ export default function MembersSidebar({ serverId, server, memberIds, onStartDM 
           uid={uid}
           serverId={serverId}
           server={server}
-          canKick={canKick}
+          myServerRank={myServerRank}
+          myGlobalRank={myGlobalRank}
           isViewingServer={isViewingServer}
-          isHost={isHost}
         />
       ))}
     </div>

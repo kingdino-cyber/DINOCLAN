@@ -4,7 +4,7 @@ import { doc, updateDoc, deleteDoc, arrayUnion, arrayRemove } from 'firebase/fir
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useProfile } from '../../contexts/ProfileContext'
-import { isAdmin } from '../../utils/admin'
+import { isAdmin, SERVER_RANK_TAGS, GLOBAL_RANK_TAGS } from '../../utils/admin'
 import Avatar from './Avatar'
 
 function formatTimestamp(ts, short = false) {
@@ -14,6 +14,50 @@ function formatTimestamp(ts, short = false) {
   if (isToday(date))     return `Today at ${format(date, 'HH:mm')}`
   if (isYesterday(date)) return `Yesterday at ${format(date, 'HH:mm')}`
   return format(date, 'dd/MM/yyyy HH:mm')
+}
+
+/* ── Rank tag chip ── */
+function RankTag({ rank, type = 'server' }) {
+  const tags = type === 'global' ? GLOBAL_RANK_TAGS : SERVER_RANK_TAGS
+  const info = tags[rank]
+  if (!info) return null
+  return (
+    <span style={{
+      fontSize: 9, fontWeight: 800, letterSpacing: '0.04em',
+      color: info.color, background: info.bg,
+      borderRadius: 3, padding: '1px 5px',
+      border: `1px solid ${info.color}44`,
+      flexShrink: 0,
+    }}>{info.label}</span>
+  )
+}
+
+/* ── System message (join / leave activity) ── */
+function SystemMessage({ message }) {
+  return (
+    <div className="system-message">
+      <span className="system-message-icon">📢</span>
+      <span className="system-message-text">{message.content}</span>
+      <span className="system-message-ts">{formatTimestamp(message.createdAt, true)}</span>
+    </div>
+  )
+}
+
+/* ── Bot message (swear jar) ── */
+function BotMessage({ message }) {
+  return (
+    <div className="bot-message">
+      <div className="bot-message-avatar">🤖</div>
+      <div className="bot-message-body">
+        <div className="bot-message-header">
+          <span className="bot-message-name">{message.botName || 'Bot'}</span>
+          <span className="bot-tag">APP</span>
+          <span className="msg-ts">{formatTimestamp(message.createdAt)}</span>
+        </div>
+        <pre className="bot-message-content">{message.content}</pre>
+      </div>
+    </div>
+  )
 }
 
 /* ── File attachment card ── */
@@ -64,7 +108,6 @@ function PollMessage({ message, messageRef }) {
     (sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0), 0
   )
 
-  // Which option did the current user vote for? (-1 = none)
   const myVote = (message.pollOptions || []).findIndex(
     (_, i) => Array.isArray(votes[String(i)]) && votes[String(i)].includes(currentUser?.uid)
   )
@@ -73,7 +116,6 @@ function PollMessage({ message, messageRef }) {
     if (!currentUser?.uid) return
     const updates = {}
     if (myVote === index) {
-      // Unvote
       updates[`pollVotes.${index}`] = arrayRemove(currentUser.uid)
     } else {
       if (myVote >= 0) {
@@ -210,6 +252,10 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
   const [editing, setEditing] = useState(false)
   const [hovered, setHovered] = useState(false)
 
+  // Special message types
+  if (message.type === 'system') return <SystemMessage message={message} />
+  if (message.type === 'bot')    return <BotMessage message={message} />
+
   const isPoll    = message.type === 'poll'
   const isOwn     = message.uid === currentUser?.uid
   const canEdit   = isOwn && !!message.content && !isPoll
@@ -217,6 +263,8 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
 
   const sameAuthor = !isFirst &&
     prevMessage?.uid === message.uid &&
+    prevMessage?.type !== 'system' &&
+    prevMessage?.type !== 'bot' &&
     message.createdAt && prevMessage?.createdAt &&
     (message.createdAt.toDate?.() - prevMessage.createdAt.toDate?.()) < 5 * 60 * 1000
 
@@ -231,6 +279,16 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
   const importantClass = message.important ? 'msg-important' : ''
   const pinnedClass    = message.pinned    ? 'msg-pinned'    : ''
   const messageRef     = doc(db, 'servers', serverId, 'channels', channelId, 'messages', message.id)
+
+  // Rank tags — prefer new fields, fall back to legacy isAdmin flag
+  const serverRankTag = message.serverRank && message.serverRank !== 'member'
+    ? <RankTag rank={message.serverRank} type="server" />
+    : null
+  const globalRankTag = message.globalRank && message.globalRank !== 'user'
+    ? <RankTag rank={message.globalRank} type="global" />
+    : (!message.globalRank && message.isAdmin)
+      ? <RankTag rank="admin" type="global" />
+      : null
 
   async function handleDelete(e) {
     e.stopPropagation()
@@ -320,7 +378,8 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
       <div className="msg-avatar"><Avatar user={fakeUser} size={40} /></div>
       <div className="msg-body">
         <div className="msg-header">
-          {message.isAdmin && <span className="admin-tag">ADMIN</span>}
+          {serverRankTag}
+          {globalRankTag}
           <span
             className="msg-author"
             style={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}
