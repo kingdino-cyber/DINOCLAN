@@ -244,43 +244,13 @@ export function CallProvider({ children }) {
 
   function watchCallDoc(callId) {
     if (callDocUnsubRef.current) callDocUnsubRef.current()
-    // Track which participant UIDs we've already connected to, to avoid re-offering
-    const connectedUids = new Set()
-
-    callDocUnsubRef.current = onSnapshot(doc(db, 'calls', callId), async snap => {
+    callDocUnsubRef.current = onSnapshot(doc(db, 'calls', callId), snap => {
       if (!snap.exists() || snap.data().status === 'ended') {
         playCallEnd()
         cleanupCall()
         return
       }
-      const data = snap.data()
-      setActiveCall(prev => ({ ...prev, ...data, callId }))
-
-      // Detect new participants and offer to them if we don't already have a connection
-      const participants = data.participants || []
-      for (const p of participants) {
-        if (p.uid === currentUser.uid) continue            // skip self
-        if (connectedUids.has(p.uid)) continue            // already connected
-        if (peersRef.current[p.uid]) {
-          // Peer object exists — mark as connected so we don't re-offer
-          connectedUids.add(p.uid)
-          continue
-        }
-        // New participant — send them an offer
-        connectedUids.add(p.uid)
-        try {
-          const peer = makePeer(p.uid, callId)
-          const offer = await peer.createOffer()
-          await peer.setLocalDescription(offer)
-          await addDoc(collection(db, 'calls', callId, 'signals'), {
-            from: currentUser.uid, to: p.uid,
-            type: 'offer', data: JSON.stringify(offer),
-            createdAt: serverTimestamp(),
-          })
-        } catch (err) {
-          console.warn('Could not offer to new participant', p.uid, err)
-        }
-      }
+      setActiveCall(prev => ({ ...prev, ...snap.data(), callId }))
     })
   }
 

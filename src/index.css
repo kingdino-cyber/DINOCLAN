@@ -2578,3 +2578,90 @@ code {
   font-family: 'Consolas', 'Courier New', monospace;
   font-size: 12px;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   REPLY FEATURE
+═══════════════════════════════════════════════════════════════ */
+
+/* Quote block shown inside a message that is a reply */
+.reply-quote {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 4px;
+  opacity: 0.85;
+  cursor: default;
+}
+.reply-quote-bar {
+  width: 3px;
+  border-radius: 2px;
+  background: var(--text-muted);
+  flex-shrink: 0;
+}
+.reply-quote-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.reply-quote-author {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.reply-quote-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 460px;
+}
+
+/* Preview bar above the message input when replying */
+.reply-preview-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: var(--bg-tertiary);
+  border-top: 1px solid var(--bg-active);
+  flex-shrink: 0;
+}
+.reply-preview-inner {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.reply-preview-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.reply-preview-label strong { color: var(--accent); }
+.reply-preview-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.7;
+}
+.reply-preview-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: color 0.1s, background 0.1s;
+}
+.reply-preview-close:hover { color: var(--danger); background: rgba(237,66,69,0.12); }

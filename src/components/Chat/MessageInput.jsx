@@ -3,7 +3,8 @@ import {
   addDoc, collection, serverTimestamp, doc, onSnapshot,
   updateDoc, setDoc, deleteField, getDocs, getDoc, increment,
 } from 'firebase/firestore'
-import { db } from '../../firebase'
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { db, storage } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import { isOperator, getServerRank, getGlobalRank, countSwears } from '../../utils/admin'
 
@@ -51,7 +52,7 @@ function compressImage(file) {
   })
 }
 
-// Read any file as a base64 data-URL (for non-image attachments)
+// Read any file as a base64 data-URL (for small non-image files stored in Firestore)
 function readFileAsDataURL(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -63,15 +64,17 @@ function readFileAsDataURL(file) {
 
 function formatFileSize(bytes) {
   if (!bytes) return ''
-  if (bytes < 1024)           return `${bytes} B`
-  if (bytes < 1024 * 1024)   return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  if (bytes < 1024)            return `${bytes} B`
+  if (bytes < 1024 * 1024)    return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024*1024*1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${(bytes / (1024*1024*1024)).toFixed(2)} GB`
 }
 
-// Max raw size for non-image attachments stored as base64 in Firestore
-const MAX_FILE_BYTES = 700 * 1024   // ~700 KB raw ≈ ~930 KB base64
+// Firestore document limit (~1 MB). Files smaller than this use base64 directly.
+// Larger files are uploaded to Firebase Storage.
+const BASE64_MAX_BYTES = 700 * 1024   // 700 KB → ~930 KB base64 (safe under 1 MB doc limit)
 
-export default function MessageInput({ serverId, channelId, channelName, server }) {
+export default function MessageInput({ serverId, channelId, channelName, server, replyTo, onClearReply }) {
   const { currentUser } = useAuth()
 
   // ── ALL hooks must come before any conditional return (Rules of Hooks) ────
@@ -80,7 +83,8 @@ export default function MessageInput({ serverId, channelId, channelName, server 
   const [sendError,       setSendError]       = useState('')
   const [userData,        setUserData]        = useState(null)
   const [pendingImage,    setPendingImage]    = useState(null)   // base64 data-URL
-  const [pendingFile,     setPendingFile]     = useState(null)   // { dataUrl, name, size, type }
+  const [pendingFile,     setPendingFile]     = useState(null)   // { file, name, size, type, dataUrl? }
+  const [uploadProgress,  setUploadProgress]  = useState(null)  // null | 'uploading'
   const [showEmoji,       setShowEmoji]       = useState(false)
   const [emojiTab,        setEmojiTab]        = useState(0)
   const [typingNames,     setTypingNames]     = useState([])
@@ -221,13 +225,8 @@ export default function MessageInput({ serverId, channelId, channelName, server 
       setPendingImage(dataUrl)
       setPendingFile(null)
     } else {
-      if (file.size > MAX_FILE_BYTES) {
-        setSendError(`File too large — max ${Math.round(MAX_FILE_BYTES / 1024)} KB. Share a link for bigger files.`)
-        setTimeout(() => setSendError(''), 5000)
-        return
-      }
-      const dataUrl = await readFileAsDataURL(file)
-      setPendingFile({ dataUrl, name: file.name, size: file.size, type: file.type })
+      // Any file size is acceptable — small ones use base64, large ones use Firebase Storage
+      setPendingFile({ file, name: file.name, size: file.size, type: file.type })
       setPendingImage(null)
     }
   }
@@ -258,12 +257,7 @@ export default function MessageInput({ serverId, channelId, channelName, server 
   async function postBotMessage(content, botName = 'swear jar') {
     await addDoc(
       collection(db, 'servers', serverId, 'channels', channelId, 'messages'),
-      {
-        type:      'bot',
-        botName,
-        content,
-        createdAt: serverTimestamp(),
-      }
+      { type: 'bot', botName, content, createdAt: serverTimestamp() }
     )
   }
 
@@ -274,18 +268,10 @@ export default function MessageInput({ serverId, channelId, channelName, server 
     if (n === 0) return
     const senderName = userData?.displayName || currentUser.displayName || currentUser.email
     const countRef = doc(db, 'servers', serverId, 'channels', channelId, 'swearCounts', currentUser.uid)
-    // Upsert: create doc if missing, increment count otherwise
-    await setDoc(countRef, {
-      uid: currentUser.uid,
-      displayName: senderName,
-      count: increment(n),
-    }, { merge: true })
-    // Read the updated total
+    await setDoc(countRef, { uid: currentUser.uid, displayName: senderName, count: increment(n) }, { merge: true })
     const snap = await getDoc(countRef)
     const total = snap.exists() ? (snap.data().count || n) : n
-    await postBotMessage(
-      `🫙 ${senderName} now has ${total} swear${total === 1 ? '' : 's'}.`
-    )
+    await postBotMessage(`🫙 ${senderName} now has ${total} swear${total === 1 ? '' : 's'}.`)
   }
 
   // ── /leaderboard command ──────────────────────────────────────────────────
@@ -298,19 +284,22 @@ export default function MessageInput({ serverId, channelId, channelName, server 
         .map(d => d.data())
         .sort((a, b) => (b.count || 0) - (a.count || 0))
 
-      let leaderboard
-      if (entries.length === 0) {
-        leaderboard = 'No swears recorded yet!'
-      } else {
-        const medals = ['🥇', '🥈', '🥉']
-        leaderboard = entries
-          .map((e, i) => `${medals[i] || `${i + 1}.`} ${e.displayName}: ${e.count || 0} swear${(e.count || 0) === 1 ? '' : 's'}`)
-          .join('\n')
-      }
+      const medals = ['🥇', '🥈', '🥉']
+      const leaderboard = entries.length === 0
+        ? 'No swears recorded yet!'
+        : entries.map((e, i) => `${medals[i] || `${i + 1}.`} ${e.displayName}: ${e.count || 0} swear${(e.count || 0) === 1 ? '' : 's'}`).join('\n')
       await postBotMessage(`🤬 Swear Jar Leaderboard 🫙\n\n${leaderboard}`)
     } catch (err) {
       console.error('Leaderboard error:', err)
     }
+  }
+
+  // ── Upload file to Firebase Storage (for large files) ────────────────────
+  async function uploadToStorage(file) {
+    const path = `attachments/${serverId}/${channelId}/${Date.now()}_${file.name}`
+    const fileRef = storageRef(storage, path)
+    await uploadBytes(fileRef, file)
+    return await getDownloadURL(fileRef)
   }
 
   // ── Send regular message ──────────────────────────────────────────────────
@@ -334,6 +323,7 @@ export default function MessageInput({ serverId, channelId, channelName, server 
     const savedText   = text
     const imageToSend = pendingImage
     const fileToSend  = pendingFile
+    const replyToSend = replyTo
 
     // Optimistically clear input
     setText('')
@@ -342,11 +332,60 @@ export default function MessageInput({ serverId, channelId, channelName, server 
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     clearTyping()
     clearTimeout(typingTimeoutRef.current)
+    if (onClearReply) onClearReply()
 
     try {
-      const senderName  = userData?.displayName || currentUser.displayName || currentUser.email
-      const serverRank  = getServerRank(server, currentUser.uid)
-      const globalRank  = getGlobalRank({ ...userData, email: currentUser.email })
+      const senderName = userData?.displayName || currentUser.displayName || currentUser.email
+      const serverRank = getServerRank(server, currentUser.uid)
+      const globalRank = getGlobalRank({ ...userData, email: currentUser.email })
+
+      // Handle file attachment
+      let fileURL    = null   // Firebase Storage URL (large files)
+      let fileData   = null   // base64 (small files)
+      let fileName   = null
+      let fileSize   = null
+      let fileType   = null
+
+      if (fileToSend) {
+        fileName = fileToSend.name
+        fileSize = fileToSend.size
+        fileType = fileToSend.type
+
+        if (fileToSend.size <= BASE64_MAX_BYTES) {
+          // Small file → store as base64 in Firestore (no Storage needed)
+          fileData = await readFileAsDataURL(fileToSend.file)
+        } else {
+          // Large file → upload to Firebase Storage
+          setUploadProgress('uploading')
+          try {
+            fileURL = await uploadToStorage(fileToSend.file)
+          } catch (storageErr) {
+            console.error('Storage upload failed:', storageErr)
+            setSendError(
+              'File upload failed — please set Firebase Storage rules in the Firebase Console: ' +
+              'Storage → Rules → paste: allow read, write: if request.auth != null; → Publish.'
+            )
+            setTimeout(() => setSendError(''), 10000)
+            // Restore state
+            setText(savedText)
+            setPendingFile(fileToSend)
+            setSending(false)
+            setUploadProgress(null)
+            return
+          } finally {
+            setUploadProgress(null)
+          }
+        }
+      }
+
+      // Build reply reference (store minimal info for the quote block)
+      const replyToDoc = replyToSend ? {
+        messageId:   replyToSend.id,
+        uid:         replyToSend.uid,
+        displayName: replyToSend.displayName || 'Unknown',
+        content:     replyToSend.content ? replyToSend.content.slice(0, 150) : '',
+        imageURL:    !!replyToSend.imageURL,
+      } : null
 
       await addDoc(
         collection(db, 'servers', serverId, 'channels', channelId, 'messages'),
@@ -360,19 +399,19 @@ export default function MessageInput({ serverId, channelId, channelName, server 
           isAdmin:     isOperator(currentUser),
           serverRank,
           globalRank,
-          imageURL:    imageToSend            || null,
-          fileData:    fileToSend?.dataUrl   || null,
-          fileName:    fileToSend?.name      || null,
-          fileSize:    fileToSend?.size      || null,
-          fileType:    fileToSend?.type      || null,
+          replyTo:     replyToDoc,
+          imageURL:    imageToSend           || null,
+          fileData:    fileData              || null,
+          fileURL:     fileURL               || null,
+          fileName:    fileName              || null,
+          fileSize:    fileSize              || null,
+          fileType:    fileType              || null,
           createdAt:   serverTimestamp(),
         }
       )
 
       // Swear jar detection (fire-and-forget)
-      if (content && swearJarEnabled) {
-        handleSwearJar(content).catch(() => {})
-      }
+      if (content && swearJarEnabled) handleSwearJar(content).catch(() => {})
 
       // Notify other members (fire-and-forget)
       const preview = content
@@ -391,6 +430,7 @@ export default function MessageInput({ serverId, channelId, channelName, server 
       setTimeout(() => setSendError(''), 4000)
     } finally {
       setSending(false)
+      setUploadProgress(null)
     }
   }
 
@@ -463,7 +503,22 @@ export default function MessageInput({ serverId, channelId, channelName, server 
           padding: '2px 16px', fontSize: 11, color: 'var(--text-muted)',
           display: 'flex', alignItems: 'center', gap: 4,
         }}>
-          🫙 Swear Jar is active · type <code style={{ background: 'var(--bg-tertiary)', padding: '0 4px', borderRadius: 3 }}>/leaderboard</code> to see the rankings
+          🫙 Swear Jar active · type <code style={{ background: 'var(--bg-tertiary)', padding: '0 4px', borderRadius: 3 }}>/leaderboard</code> to see rankings
+        </div>
+      )}
+
+      {/* ── Reply preview bar ── */}
+      {replyTo && (
+        <div className="reply-preview-bar">
+          <div className="reply-preview-inner">
+            <span className="reply-preview-label">↩️ Replying to <strong>{replyTo.displayName}</strong></span>
+            <span className="reply-preview-text">
+              {replyTo.content
+                ? replyTo.content.slice(0, 80)
+                : replyTo.imageURL ? '📷 Image' : '📎 File'}
+            </span>
+          </div>
+          <button className="reply-preview-close" onClick={onClearReply} title="Cancel reply">✕</button>
         </div>
       )}
 
@@ -552,6 +607,9 @@ export default function MessageInput({ serverId, channelId, channelName, server 
             <span className="pending-file-icon">📎</span>
             <span className="pending-file-name">{pendingFile.name}</span>
             <span className="pending-file-size">{formatFileSize(pendingFile.size)}</span>
+            {uploadProgress === 'uploading' && (
+              <span style={{ fontSize: 11, color: 'var(--accent)', marginLeft: 4 }}>Uploading…</span>
+            )}
             <button className="pending-image-remove" onClick={() => setPendingFile(null)} title="Remove">✕</button>
           </div>
         )}
@@ -560,7 +618,7 @@ export default function MessageInput({ serverId, channelId, channelName, server 
           <button
             className="attach-btn"
             onClick={() => fileRef.current?.click()}
-            title="Attach file"
+            title="Attach file (any size)"
           >+</button>
           <input
             ref={fileRef}
@@ -622,9 +680,12 @@ export default function MessageInput({ serverId, channelId, channelName, server 
             disabled={!canSend || sending}
             title="Send message"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/>
-            </svg>
+            {uploadProgress === 'uploading'
+              ? <span style={{ fontSize: 12 }}>⏳</span>
+              : <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/>
+                </svg>
+            }
           </button>
         </div>
       </div>

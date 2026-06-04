@@ -8,6 +8,7 @@ import VoiceChannelView from '../Chat/VoiceChannelView'
 
 export default function ChatArea({ server, channelId, onStartDM }) {
   const [channel, setChannel] = useState(null)
+  const [replyTo, setReplyTo] = useState(null)   // message being replied to
 
   useEffect(() => {
     if (!server?.id || !channelId) { setChannel(null); return }
@@ -17,6 +18,9 @@ export default function ChatArea({ server, channelId, onStartDM }) {
     )
     return unsub
   }, [server?.id, channelId])
+
+  // Clear reply when switching channels
+  useEffect(() => { setReplyTo(null) }, [channelId])
 
   if (!server || !channelId || !channel) {
     return (
@@ -57,6 +61,7 @@ export default function ChatArea({ server, channelId, onStartDM }) {
             serverId={server.id}
             channelId={channelId}
             channelName={channel.name}
+            onReply={setReplyTo}
           />
         </div>
 
@@ -65,6 +70,8 @@ export default function ChatArea({ server, channelId, onStartDM }) {
           channelId={channelId}
           channelName={channel.name}
           server={server}
+          replyTo={replyTo}
+          onClearReply={() => setReplyTo(null)}
         />
       </div>
 

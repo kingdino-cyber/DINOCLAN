@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import {
   isAdmin, isOperator,
   getServerRank, getGlobalRank,
-  canManage, serverRankLevel, globalRankLevel,
+  canManage,
   SERVER_RANK_TAGS, GLOBAL_RANK_TAGS,
 } from '../../utils/admin'
 import { useProfile } from '../../contexts/ProfileContext'
@@ -86,9 +86,9 @@ function MemberRow({ uid, serverId, server, myServerRank, myGlobalRank, isViewin
   // Can I manage this person?
   const iManage = !isSelf && !isOwner && canManage(myServerRank, myGlobalRank, theirServerRank, theirGlobalRank)
 
-  // Can kick/ban: need server rank ≥ moderator or global rank ≥ moderator, and must outrank target
-  const myEffectiveLevel = Math.max(serverRankLevel(myServerRank), globalRankLevel(myGlobalRank))
-  const canKick = iManage && myEffectiveLevel >= 2   // moderator or above
+  // Can kick/ban: just need to outrank the target (canManage already enforces strict >)
+  // canManage prevents same-rank or higher-rank targets from being kicked
+  const canKick = iManage
 
   const isEditor = server?.editors?.includes(uid)
   const isHost = server?.ownerId === currentUser?.uid || isOperator(currentUser)

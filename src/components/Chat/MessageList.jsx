@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   collection, query, orderBy, limitToLast, onSnapshot,
 } from 'firebase/firestore'
@@ -7,41 +7,68 @@ import { useAuth } from '../../contexts/AuthContext'
 import { playMessageSound } from '../../utils/sounds'
 import Message from './Message'
 
-export default function MessageList({ serverId, channelId, channelName }) {
+export default function MessageList({ serverId, channelId, channelName, onReply }) {
   const { currentUser } = useAuth()
   const [messages, setMessages] = useState([])
-  const bottomRef = useRef(null)
-  const isFirstLoad = useRef(true)
+  const bottomRef   = useRef(null)
+  const containerRef = useRef(null)
+  const isFirstLoad  = useRef(true)
   const prevCountRef = useRef(0)
+  // Track if user has scrolled up so we don't force-scroll while reading history
+  const userScrolledUp = useRef(false)
+
+  // Detect manual upward scrolling
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    function onScroll() {
+      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120
+      userScrolledUp.current = !nearBottom
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [])
 
   useEffect(() => {
     if (!serverId || !channelId) return
-    isFirstLoad.current = true
+    isFirstLoad.current  = true
+    userScrolledUp.current = false
     setMessages([])
 
     const q = query(
       collection(db, 'servers', serverId, 'channels', channelId, 'messages'),
       orderBy('createdAt', 'asc'),
-      limitToLast(200),
+      limitToLast(50),          // 50 most-recent messages — fast initial load
     )
 
     const unsub = onSnapshot(q, snap => {
       const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
       setMessages(msgs)
+
       if (isFirstLoad.current) {
-        isFirstLoad.current = false
-        prevCountRef.current = msgs.length
-        setTimeout(() => bottomRef.current?.scrollIntoView(), 50)
+        isFirstLoad.current    = false
+        prevCountRef.current   = msgs.length
+        userScrolledUp.current = false
+        // Scroll after the browser has painted the new messages
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            bottomRef.current?.scrollIntoView()
+          })
+        })
       } else {
-        // Play bing only for new messages from other users
         if (msgs.length > prevCountRef.current) {
           const newest = msgs[msgs.length - 1]
           if (newest?.uid && newest.uid !== currentUser?.uid) {
             playMessageSound()
           }
+          // Auto-scroll to bottom unless the user has intentionally scrolled up
+          if (!userScrolledUp.current) {
+            requestAnimationFrame(() => {
+              bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+            })
+          }
         }
         prevCountRef.current = msgs.length
-        bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
       }
     })
 
@@ -50,7 +77,7 @@ export default function MessageList({ serverId, channelId, channelName }) {
 
   if (messages.length === 0) {
     return (
-      <div className="messages-list" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', flex: 1 }}>
+      <div className="messages-list" ref={containerRef} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', flex: 1 }}>
         <div className="welcome-banner">
           <div className="welcome-icon">🦕</div>
           <h2>Welcome to #{channelName}!</h2>
@@ -62,7 +89,7 @@ export default function MessageList({ serverId, channelId, channelName }) {
   }
 
   return (
-    <div className="messages-list">
+    <div className="messages-list" ref={containerRef}>
       <div className="welcome-banner">
         <div className="welcome-icon">🦕</div>
         <h2>Welcome to #{channelName}!</h2>
@@ -76,6 +103,7 @@ export default function MessageList({ serverId, channelId, channelName }) {
           prevMessage={messages[i - 1]}
           serverId={serverId}
           channelId={channelId}
+          onReply={onReply}
         />
       ))}
       <div ref={bottomRef} />

@@ -155,7 +155,7 @@ function PollMessage({ message, messageRef }) {
 }
 
 /* ── Hover action bar ── */
-function MessageActions({ message, serverId, channelId, onEdit, onDelete, canEdit, canDelete }) {
+function MessageActions({ message, serverId, channelId, onEdit, onDelete, onReply, canEdit, canDelete }) {
   const { currentUser } = useAuth()
 
   async function toggleImportant() {
@@ -175,6 +175,11 @@ function MessageActions({ message, serverId, channelId, onEdit, onDelete, canEdi
 
   return (
     <div className="msg-action-bar" onClick={e => e.stopPropagation()}>
+      {onReply && (
+        <button className="msg-action-btn" onClick={() => onReply(message)} title="Reply">
+          ↩️
+        </button>
+      )}
       <button className="msg-action-btn" onClick={toggleImportant}
         title={message.important ? 'Remove importance' : 'Mark important'}>
         {message.important ? '🔕' : '⚠️'}
@@ -245,8 +250,25 @@ function EditBox({ original, messageRef, onDone }) {
   )
 }
 
+/* ── Reply quote block ── */
+function ReplyQuote({ replyTo }) {
+  if (!replyTo) return null
+  const preview = replyTo.content
+    ? replyTo.content.slice(0, 120)
+    : replyTo.imageURL ? '📷 Image' : '📎 Attachment'
+  return (
+    <div className="reply-quote">
+      <div className="reply-quote-bar" />
+      <div className="reply-quote-inner">
+        <span className="reply-quote-author">↩️ {replyTo.displayName}</span>
+        <span className="reply-quote-text">{preview}</span>
+      </div>
+    </div>
+  )
+}
+
 /* ── Main Message component ── */
-export default function Message({ message, isFirst, prevMessage, serverId, channelId }) {
+export default function Message({ message, isFirst, prevMessage, serverId, channelId, onReply }) {
   const { currentUser } = useAuth()
   const { openProfile } = useProfile()
   const [editing, setEditing] = useState(false)
@@ -308,6 +330,7 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
       channelId={channelId}
       canEdit={canEdit}
       canDelete={canDelete}
+      onReply={!isPoll ? onReply : null}
       onEdit={e => { e?.stopPropagation(); setEditing(true) }}
       onDelete={handleDelete}
     />
@@ -319,6 +342,9 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
         <PollMessage message={message} messageRef={messageRef} />
       ) : (
         <>
+          {/* Reply quote block */}
+          {message.replyTo && <ReplyQuote replyTo={message.replyTo} />}
+
           {message.content && !editing && (
             <p className="msg-content">
               {message.content}
@@ -339,6 +365,15 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
           {message.fileData && (
             <FileAttachment
               url={message.fileData}
+              name={message.fileName}
+              size={message.fileSize}
+              type={message.fileType}
+            />
+          )}
+          {/* Firebase Storage file */}
+          {message.fileURL && !message.fileData && (
+            <FileAttachment
+              url={message.fileURL}
               name={message.fileName}
               size={message.fileSize}
               type={message.fileType}
