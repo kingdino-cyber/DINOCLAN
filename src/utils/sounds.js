@@ -1,15 +1,15 @@
 let audioCtx = null
 
-function getCtx() {
+async function getCtx() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)()
-  if (audioCtx.state === 'suspended') audioCtx.resume()
+  if (audioCtx.state === 'suspended') await audioCtx.resume()
   return audioCtx
 }
 
 // Nice double-bing for incoming messages
-export function playMessageSound() {
+export async function playMessageSound() {
   try {
-    const ctx = getCtx()
+    const ctx = await getCtx()
     const t = ctx.currentTime
 
     function note(freq, startOffset, duration, vol = 0.18) {
@@ -33,14 +33,14 @@ export function playMessageSound() {
 
 // Repeating phone-ring for incoming calls — returns a stop() function
 export function playCallRing() {
-  try {
-    const ctx = getCtx()
-    let active = true
+  let active = true
+  const stop = () => { active = false }
 
+  getCtx().then(ctx => {
+    if (!active) return
     function ring() {
       if (!active) return
       const t = ctx.currentTime
-
       function pulse(freq, start) {
         const osc = ctx.createOscillator()
         const gain = ctx.createGain()
@@ -54,25 +54,21 @@ export function playCallRing() {
         osc.start(t + start)
         osc.stop(t + start + 0.22)
       }
-
       pulse(880, 0)
       pulse(1100, 0.25)
       pulse(880, 0.5)
-
       setTimeout(ring, 1800)
     }
-
     ring()
-    return () => { active = false }
-  } catch (e) {
-    return () => {}
-  }
+  }).catch(() => {})
+
+  return stop
 }
 
 // Low descending tone when call ends
-export function playCallEnd() {
+export async function playCallEnd() {
   try {
-    const ctx = getCtx()
+    const ctx = await getCtx()
     const t = ctx.currentTime
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
@@ -88,9 +84,9 @@ export function playCallEnd() {
 }
 
 // Short blip when joining a call
-export function playCallJoin() {
+export async function playCallJoin() {
   try {
-    const ctx = getCtx()
+    const ctx = await getCtx()
     const t = ctx.currentTime
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()

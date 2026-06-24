@@ -3,12 +3,14 @@ import { doc, onSnapshot } from 'firebase/firestore'
 import { db } from '../../firebase'
 import MessageList from '../Chat/MessageList'
 import MessageInput from '../Chat/MessageInput'
+import MessageSearch from '../Chat/MessageSearch'
 import MembersSidebar from './MembersSidebar'
 import VoiceChannelView from '../Chat/VoiceChannelView'
 
 export default function ChatArea({ server, channelId, onStartDM }) {
   const [channel, setChannel] = useState(null)
   const [replyTo, setReplyTo] = useState(null)   // message being replied to
+  const [jumpToMessageId, setJumpToMessageId] = useState(null)
 
   useEffect(() => {
     if (!server?.id || !channelId) { setChannel(null); return }
@@ -51,9 +53,16 @@ export default function ChatArea({ server, channelId, onStartDM }) {
         <div className="chat-header">
           <span className="channel-hash">#</span>
           <h3>{channel.name}</h3>
-          {server.type === 'viewing' && (
-            <span className="viewing-badge" title="Viewing server — only permitted members can post">👁️ Viewing</span>
+          {(channel.viewType || (server.type === 'viewing' ? 'viewing' : 'editing')) === 'viewing' && (
+            <span className="viewing-badge" title="Viewing channel — only permitted members can post">👁️ Viewing</span>
           )}
+          <div style={{ marginLeft: 'auto' }}>
+            <MessageSearch
+              serverId={server.id}
+              channelId={channelId}
+              onJump={setJumpToMessageId}
+            />
+          </div>
         </div>
 
         <div className="messages-container">
@@ -62,6 +71,8 @@ export default function ChatArea({ server, channelId, onStartDM }) {
             channelId={channelId}
             channelName={channel.name}
             onReply={setReplyTo}
+            jumpToMessageId={jumpToMessageId}
+            onJumpHandled={() => setJumpToMessageId(null)}
           />
         </div>
 
@@ -70,6 +81,7 @@ export default function ChatArea({ server, channelId, onStartDM }) {
           channelId={channelId}
           channelName={channel.name}
           server={server}
+          channel={channel}
           replyTo={replyTo}
           onClearReply={() => setReplyTo(null)}
         />

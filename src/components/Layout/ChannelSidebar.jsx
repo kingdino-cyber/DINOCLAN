@@ -8,6 +8,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { isAdmin, getServerRank, getGlobalRank, serverRankLevel, globalRankLevel } from '../../utils/admin'
 import CreateChannel from '../Modals/CreateChannel'
 import EditServer from '../Modals/EditServer'
+import EditCategory from '../Modals/EditCategory'
 import UserPanel from './UserPanel'
 import SponsorBanner from './SponsorBanner'
 import Avatar from '../Chat/Avatar'
@@ -98,16 +99,29 @@ function VoiceChannelItem({ ch, isActive, onClick, canAdmin, onDelete }) {
   )
 }
 
-/* ── Customise channel popup (swear jar toggle) ─────────────────────────────── */
-function CustomiseModal({ ch, serverId, onClose }) {
+/* ── Customise channel popup (swear jar toggle + header assignment) ──────────── */
+function CustomiseModal({ ch, serverId, isGroup, onClose }) {
   const [swearJarEnabled, setSwearJarEnabled] = useState(!!ch.swearJarEnabled)
+  const [categoryId, setCategoryId] = useState(ch.categoryId || '')
+  const [headers, setHeaders] = useState([])
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    // Headers are a server-only feature — never query for them in a group
+    if (isGroup) return
+    getDocs(collection(db, 'servers', serverId, 'categories')).then(snap => {
+      const all = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      // Only headers matching this channel's type can hold it
+      setHeaders(all.filter(c => (c.type || 'text') === (ch.type || 'text')))
+    })
+  }, [serverId, ch.type, isGroup])
 
   async function handleSubmit() {
     setSaving(true)
     try {
       await updateDoc(doc(db, 'servers', serverId, 'channels', ch.id), {
         swearJarEnabled,
+        categoryId: categoryId || null,
       })
       onClose()
     } catch (err) {
@@ -124,6 +138,25 @@ function CustomiseModal({ ch, serverId, onClose }) {
         <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 20 }}>
           Configure special features for this channel.
         </p>
+
+        {headers.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <label>Header</label>
+            <select
+              value={categoryId}
+              onChange={e => setCategoryId(e.target.value)}
+              style={{
+                width: '100%', background: 'var(--bg-tertiary)', border: '1px solid var(--bg-modifier)',
+                borderRadius: 6, color: 'var(--text-normal)', padding: '8px 10px', fontFamily: 'inherit',
+              }}
+            >
+              <option value="">No header</option>
+              {headers.map(h => (
+                <option key={h.id} value={h.id}>{h.emoji} {h.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div style={{
           background: 'var(--bg-tertiary)', borderRadius: 10, padding: '14px 16px',
@@ -163,14 +196,48 @@ function CustomiseModal({ ch, serverId, onClose }) {
   )
 }
 
+// ── Collapsible category header — a little 🦕 flair, Discord-style layout ──
+function CategoryHeader({ category, collapsed, onToggle, canCustomise, onEdit, onDelete }) {
+  // Explicitly chosen "None" (empty string) shows nothing; undefined (legacy
+  // categories made before this option existed) still falls back to 🦕
+  const emoji = category.emoji === '' ? null : (category.emoji || '🦕')
+  return (
+    <div className="channel-category category-header" onClick={onToggle} style={{ cursor: 'pointer' }}>
+      <span className="category-header-title">
+        <span className="category-header-arrow">{collapsed ? '▸' : '▾'}</span>
+        {(category.type || 'text') === 'voice' ? '🔊' : '#'}{' '}
+        {emoji && `${emoji} `}◀ {category.name.toUpperCase()} ▶{emoji && ` ${emoji}`}
+      </span>
+      {canCustomise && (
+        <span className="category-header-actions">
+          <button
+            className="channel-delete-btn"
+            onClick={e => { e.stopPropagation(); onEdit(category) }}
+            title="Edit header"
+          >⚙️</button>
+          <button
+            className="channel-delete-btn"
+            onClick={e => { e.stopPropagation(); onDelete(category) }}
+            title="Delete header"
+          >🗑️</button>
+        </span>
+      )}
+    </div>
+  )
+}
+
 // ── Main sidebar ──────────────────────────────────────────────────────────────
 export default function ChannelSidebar({ server, activeChannelId, onSelectChannel }) {
   const { currentUser } = useAuth()
   const [channels,        setChannels]        = useState([])
+  const [categories,      setCategories]      = useState([])
+  const [collapsedCats,   setCollapsedCats]   = useState({})
   const [showCreate,      setShowCreate]      = useState(false)
   const [createType,      setCreateType]      = useState('text')
   const [copied,          setCopied]          = useState(false)
   const [showEditServer,  setShowEditServer]  = useState(false)
+  const [editingCategory, setEditingCategory] = useState(undefined) // undefined = closed, null = new, obj = edit
+  const [newCategoryType, setNewCategoryType] = useState('text')    // type pre-selected when creating a new category
   const [customiseChannel, setCustomiseChannel] = useState(null)  // channel being customised
   const fileRef = useRef(null)
 
@@ -186,6 +253,8 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
     return serverRankLevel(serverRank) >= 1  // operator or above
   }
   const showCustomiseBtn = canCustomise(server)
+  // Categories (custom headers) are a server-only feature — groups don't get them
+  const canManageCategories = showCustomiseBtn && server?.kind !== 'group'
 
   useEffect(() => {
     if (!server?.id) return
@@ -195,6 +264,16 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
     )
     return onSnapshot(q, snap => setChannels(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
   }, [server?.id])
+
+  useEffect(() => {
+    // Categories are a server-only feature — skip the query entirely for groups
+    if (!server?.id || server.kind === 'group') { setCategories([]); return }
+    const q = query(
+      collection(db, 'servers', server.id, 'categories'),
+      orderBy('position', 'asc'),
+    )
+    return onSnapshot(q, snap => setCategories(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
+  }, [server?.id, server?.kind])
 
   function handleChannelCreated(channelId) {
     setShowCreate(false)
@@ -209,6 +288,24 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
     e.target.value = ''
   }
 
+  async function toggleChannelViewType(ch) {
+    const current = ch.viewType || 'editing'
+    await updateDoc(doc(db, 'servers', server.id, 'channels', ch.id), {
+      viewType: current === 'viewing' ? 'editing' : 'viewing',
+    })
+  }
+
+  async function handleDeleteCategory(category) {
+    if (!window.confirm(`Delete header "${category.name}"? Channels inside will become uncategorised.`)) return
+    // Clear categoryId off every channel that pointed at this header, or they'd
+    // silently vanish from the sidebar (no header to render them under).
+    const affected = channels.filter(ch => ch.categoryId === category.id)
+    await Promise.all(affected.map(ch =>
+      updateDoc(doc(db, 'servers', server.id, 'channels', ch.id), { categoryId: null })
+    ))
+    await deleteDoc(doc(db, 'servers', server.id, 'categories', category.id))
+  }
+
   async function handleDeleteChannel(ch) {
     if (!window.confirm(`Delete #${ch.name}? All messages will be lost.`)) return
     const msgsSnap = await getDocs(collection(db, 'servers', server.id, 'channels', ch.id, 'messages'))
@@ -218,16 +315,62 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
   }
 
   function handleInvite() {
-    const code = server.joinCode || server.id
-    navigator.clipboard.writeText(code).then(() => {
+    const text = server.kind === 'group'
+      ? `${window.location.origin}/app/${server.id}`
+      : (server.joinCode || server.id)
+    navigator.clipboard.writeText(text).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
   }
 
-  // Separate text vs voice channels (default to text for old channels)
-  const textChannels  = channels.filter(ch => (ch.type || 'text') === 'text')
-  const voiceChannels = channels.filter(ch => ch.type === 'voice')
+  function renderTextChannel(ch) {
+    return (
+      <div
+        key={ch.id}
+        className={`channel-item ${activeChannelId === ch.id ? 'active' : ''}`}
+        onClick={() => onSelectChannel(ch.id)}
+      >
+        <span className="channel-hash">#</span>
+        <span style={{ flex: 1 }}>{ch.name}</span>
+        {(ch.viewType || 'editing') === 'viewing' && (
+          <span title="Viewing-only channel" style={{ fontSize: 12, opacity: 0.7 }}>👁️</span>
+        )}
+        {ch.swearJarEnabled && (
+          <span title="Swear Jar active" style={{ fontSize: 13, opacity: 0.7 }}>🫙</span>
+        )}
+        {showCustomiseBtn && (
+          <button
+            className="channel-delete-btn"
+            onClick={e => { e.stopPropagation(); toggleChannelViewType(ch) }}
+            title={(ch.viewType || 'editing') === 'viewing' ? 'Make editing (everyone can post)' : 'Make viewing-only'}
+          >{(ch.viewType || 'editing') === 'viewing' ? '👁️' : '✏️'}</button>
+        )}
+        {showCustomiseBtn && (
+          <button
+            className="channel-delete-btn"
+            onClick={e => { e.stopPropagation(); setCustomiseChannel(ch) }}
+            title="Customise channel"
+          >⚙️</button>
+        )}
+        {canAdmin && (
+          <button
+            className="channel-delete-btn"
+            onClick={e => { e.stopPropagation(); handleDeleteChannel(ch) }}
+            title="Delete channel"
+          >🗑️</button>
+        )}
+      </div>
+    )
+  }
+
+  const uncategorised = channels.filter(ch => !ch.categoryId)
+  const byCategory = categories.map(cat => ({
+    category: cat,
+    items: channels.filter(ch => ch.categoryId === cat.id),
+  }))
+  const textCategories  = byCategory.filter(({ category }) => (category.type || 'text') === 'text')
+  const voiceCategories = byCategory.filter(({ category }) => category.type === 'voice')
 
   if (!server) {
     return (
@@ -262,7 +405,7 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
           <button
             className="invite-btn"
             onClick={() => setShowEditServer(true)}
-            title="Server settings"
+            title={server.kind === 'group' ? 'Group settings' : 'Server settings'}
             style={{ fontSize: 15 }}
           >
             ⚙️
@@ -271,64 +414,62 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
         <button
           className="invite-btn"
           onClick={handleInvite}
-          title={server.joinCode ? `Join code: ${server.joinCode} — click to copy` : 'Copy server ID'}
+          title={
+            server.kind === 'group'
+              ? 'Copy join link — click to copy'
+              : (server.joinCode ? `Join code: ${server.joinCode} — click to copy` : 'Copy server ID')
+          }
         >
-          {copied ? '✓' : (server.joinCode ? server.joinCode : '🔗')}
+          {copied ? '✓' : (server.kind !== 'group' && server.joinCode ? server.joinCode : '🔗')}
         </button>
         <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleServerPhoto} />
       </div>
 
       <div className="channel-list">
 
-        {/* ── Text Channels ── */}
+        {/* ── TEXT CHANNELS — uncategorised text channels + text-type categories ── */}
         <div className="channel-category">
           <span>Text Channels</span>
-          {canAdmin && (
-            <button onClick={() => { setCreateType('text'); setShowCreate(true) }} title="Create text channel">+</button>
-          )}
-        </div>
-
-        {textChannels.map(ch => (
-          <div
-            key={ch.id}
-            className={`channel-item ${activeChannelId === ch.id ? 'active' : ''}`}
-            onClick={() => onSelectChannel(ch.id)}
-          >
-            <span className="channel-hash">#</span>
-            <span style={{ flex: 1 }}>{ch.name}</span>
-            {ch.swearJarEnabled && (
-              <span title="Swear Jar active" style={{ fontSize: 13, opacity: 0.7 }}>🫙</span>
-            )}
-            {showCustomiseBtn && (
-              <button
-                className="channel-delete-btn"
-                onClick={e => { e.stopPropagation(); setCustomiseChannel(ch) }}
-                title="Customise channel"
-                style={{ opacity: 0.7 }}
-              >⚙️</button>
+          <span style={{ display: 'flex', gap: 4 }}>
+            {canManageCategories && (
+              <button onClick={() => { setNewCategoryType('text'); setEditingCategory(null) }} title="New text header">📁+</button>
             )}
             {canAdmin && (
-              <button
-                className="channel-delete-btn"
-                onClick={e => { e.stopPropagation(); handleDeleteChannel(ch) }}
-                title="Delete channel"
-              >🗑️</button>
+              <button onClick={() => { setCreateType('text'); setShowCreate(true) }} title="Create text channel">+</button>
             )}
+          </span>
+        </div>
+        {uncategorised.filter(ch => (ch.type || 'text') === 'text').map(renderTextChannel)}
+        {textCategories.map(({ category, items }) => (
+          <div key={category.id} style={{ marginTop: 8 }}>
+            <CategoryHeader
+              category={category}
+              collapsed={!!collapsedCats[category.id]}
+              onToggle={() => setCollapsedCats(c => ({ ...c, [category.id]: !c[category.id] }))}
+              canCustomise={canManageCategories}
+              onEdit={setEditingCategory}
+              onDelete={handleDeleteCategory}
+            />
+            {!collapsedCats[category.id] && items.map(renderTextChannel)}
           </div>
         ))}
-        {textChannels.length === 0 && (
+        {uncategorised.filter(ch => (ch.type || 'text') === 'text').length === 0 && textCategories.length === 0 && (
           <p style={{ fontSize: 13, color: 'var(--text-muted)', padding: '4px 24px' }}>No text channels yet</p>
         )}
 
-        {/* ── Voice Channels ── */}
+        {/* ── VOICE CHANNELS — uncategorised voice channels + voice-type categories ── */}
         <div className="channel-category" style={{ marginTop: 12 }}>
           <span>Voice Channels</span>
-          {canAdmin && (
-            <button onClick={() => { setCreateType('voice'); setShowCreate(true) }} title="Create voice channel">+</button>
-          )}
+          <span style={{ display: 'flex', gap: 4 }}>
+            {canManageCategories && (
+              <button onClick={() => { setNewCategoryType('voice'); setEditingCategory(null) }} title="New voice header">📁+</button>
+            )}
+            {canAdmin && (
+              <button onClick={() => { setCreateType('voice'); setShowCreate(true) }} title="Create voice channel">+</button>
+            )}
+          </span>
         </div>
-
-        {voiceChannels.map(ch => (
+        {uncategorised.filter(ch => ch.type === 'voice').map(ch => (
           <VoiceChannelItem
             key={ch.id}
             ch={ch}
@@ -338,7 +479,29 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
             onDelete={handleDeleteChannel}
           />
         ))}
-        {voiceChannels.length === 0 && (
+        {voiceCategories.map(({ category, items }) => (
+          <div key={category.id} style={{ marginTop: 8 }}>
+            <CategoryHeader
+              category={category}
+              collapsed={!!collapsedCats[category.id]}
+              onToggle={() => setCollapsedCats(c => ({ ...c, [category.id]: !c[category.id] }))}
+              canCustomise={canManageCategories}
+              onEdit={setEditingCategory}
+              onDelete={handleDeleteCategory}
+            />
+            {!collapsedCats[category.id] && items.map(ch => (
+              <VoiceChannelItem
+                key={ch.id}
+                ch={ch}
+                isActive={activeChannelId === ch.id}
+                onClick={() => onSelectChannel(ch.id)}
+                canAdmin={canAdmin}
+                onDelete={handleDeleteChannel}
+              />
+            ))}
+          </div>
+        ))}
+        {uncategorised.filter(ch => ch.type === 'voice').length === 0 && voiceCategories.length === 0 && (
           <p style={{ fontSize: 13, color: 'var(--text-muted)', padding: '4px 24px' }}>No voice channels yet</p>
         )}
 
@@ -348,7 +511,7 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
       <UserPanel />
 
       {showCreate && (
-        <CreateChannel serverId={server.id} defaultType={createType} onClose={handleChannelCreated} />
+        <CreateChannel serverId={server.id} defaultType={createType} isGroup={server.kind === 'group'} onClose={handleChannelCreated} />
       )}
       {showEditServer && (
         <EditServer server={server} onClose={() => setShowEditServer(false)} />
@@ -357,7 +520,16 @@ export default function ChannelSidebar({ server, activeChannelId, onSelectChanne
         <CustomiseModal
           ch={customiseChannel}
           serverId={server.id}
+          isGroup={server.kind === 'group'}
           onClose={() => setCustomiseChannel(null)}
+        />
+      )}
+      {editingCategory !== undefined && (
+        <EditCategory
+          serverId={server.id}
+          category={editingCategory}
+          defaultType={newCategoryType}
+          onClose={() => setEditingCategory(undefined)}
         />
       )}
     </div>

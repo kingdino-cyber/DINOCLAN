@@ -74,7 +74,7 @@ function formatFileSize(bytes) {
 // Larger files are uploaded to Firebase Storage.
 const BASE64_MAX_BYTES = 700 * 1024   // 700 KB → ~930 KB base64 (safe under 1 MB doc limit)
 
-export default function MessageInput({ serverId, channelId, channelName, server, replyTo, onClearReply }) {
+export default function MessageInput({ serverId, channelId, channelName, server, channel, replyTo, onClearReply }) {
   const { currentUser } = useAuth()
 
   // ── ALL hooks must come before any conditional return (Rules of Hooks) ────
@@ -90,10 +90,21 @@ export default function MessageInput({ serverId, channelId, channelName, server,
   const [typingNames,     setTypingNames]     = useState([])
   const [swearJarEnabled, setSwearJarEnabled] = useState(false)
 
+  // GIF picker state
+  const [showGif,    setShowGif]    = useState(false)
+  const [gifQuery,   setGifQuery]   = useState('')
+  const [gifResults, setGifResults] = useState([])
+  const [gifLoading, setGifLoading] = useState(false)
+  const gifRef = useRef(null)
+  const gifSearchTimeoutRef = useRef(null)
+  const gifRequestIdRef = useRef(0)
+
   // Poll creation state
-  const [showPoll,     setShowPoll]     = useState(false)
-  const [pollQuestion, setPollQuestion] = useState('')
-  const [pollOptions,  setPollOptions]  = useState(['', ''])
+  const [showPoll,        setShowPoll]        = useState(false)
+  const [pollQuestion,    setPollQuestion]    = useState('')
+  const [pollOptions,     setPollOptions]     = useState(['', ''])
+  const [pollMode,        setPollMode]        = useState('single')   // 'single' | 'multiple'
+  const [pollMaxSelect,   setPollMaxSelect]   = useState(2)
 
   const textareaRef      = useRef(null)
   const fileRef          = useRef(null)
@@ -136,6 +147,100 @@ export default function MessageInput({ serverId, channelId, channelName, server,
     return () => document.removeEventListener('mousedown', handler)
   }, [showEmoji])
 
+  // Close GIF picker on outside click
+  useEffect(() => {
+    if (!showGif) return
+    function handler(e) {
+      if (gifRef.current && !gifRef.current.contains(e.target)) setShowGif(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showGif])
+
+  // Load trending GIFs when the picker first opens
+  useEffect(() => {
+    if (showGif && gifResults.length === 0 && !gifQuery) fetchTrendingGifs()
+  }, [showGif]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function fetchTrendingGifs() {
+    const key = import.meta.env.VITE_GIPHY_API_KEY
+    if (!key) return
+    const myRequestId = ++gifRequestIdRef.current
+    setGifLoading(true)
+    try {
+      const res = await fetch(`https://api.giphy.com/v1/gifs/trending?api_key=${key}&limit=24&rating=pg-13`)
+      const data = await res.json()
+      if (myRequestId !== gifRequestIdRef.current) return // a newer search/fetch superseded this one
+      setGifResults(data.data || [])
+    } catch (_) {
+      if (myRequestId === gifRequestIdRef.current) setGifResults([])
+    } finally {
+      if (myRequestId === gifRequestIdRef.current) setGifLoading(false)
+    }
+  }
+
+  function handleGifSearch(value) {
+    setGifQuery(value)
+    clearTimeout(gifSearchTimeoutRef.current)
+    gifSearchTimeoutRef.current = setTimeout(async () => {
+      const key = import.meta.env.VITE_GIPHY_API_KEY
+      if (!key) return
+      if (!value.trim()) { fetchTrendingGifs(); return }
+      const myRequestId = ++gifRequestIdRef.current
+      setGifLoading(true)
+      try {
+        const res = await fetch(`https://api.giphy.com/v1/gifs/search?api_key=${key}&q=${encodeURIComponent(value)}&limit=24&rating=pg-13`)
+        const data = await res.json()
+        if (myRequestId !== gifRequestIdRef.current) return // a newer search superseded this one
+        setGifResults(data.data || [])
+      } catch (_) {
+        if (myRequestId === gifRequestIdRef.current) setGifResults([])
+      } finally {
+        if (myRequestId === gifRequestIdRef.current) setGifLoading(false)
+      }
+    }, 400)
+  }
+
+  async function sendGif(gifUrl) {
+    if (!serverId || !channelId || sending) return
+    setShowGif(false)
+    setGifQuery('')
+    try {
+      const senderName = userData?.displayName || currentUser.displayName || currentUser.email
+      const serverRank = getServerRank(server, currentUser.uid)
+      const globalRank = getGlobalRank({ ...userData, email: currentUser.email })
+      const replyToDoc = replyTo ? {
+        messageId:   replyTo.id,
+        uid:         replyTo.uid,
+        displayName: replyTo.displayName || 'Unknown',
+        content:     replyTo.content ? replyTo.content.slice(0, 150) : '',
+        imageURL:    !!replyTo.imageURL,
+      } : null
+      if (onClearReply) onClearReply()
+      await addDoc(
+        collection(db, 'servers', serverId, 'channels', channelId, 'messages'),
+        {
+          content:     '',
+          uid:         currentUser.uid,
+          displayName: senderName,
+          photoURL:    userData?.photoURL    || null,
+          avatarEmoji: userData?.avatarEmoji || null,
+          avatarBg:    userData?.avatarBg    || null,
+          isAdmin:     isOperator(currentUser),
+          serverRank,
+          globalRank,
+          replyTo:     replyToDoc,
+          imageURL:    gifUrl,
+          isGif:       true,
+          createdAt:   serverTimestamp(),
+        }
+      )
+      notifyMembers('🎬 GIF')
+    } catch (err) {
+      console.error('Failed to send GIF:', err)
+    }
+  }
+
   // Clear typing on channel change / unmount
   useEffect(() => {
     return () => {
@@ -167,7 +272,9 @@ export default function MessageInput({ serverId, channelId, channelName, server,
   }
 
   // ── Permission check — AFTER all hooks ───────────────────────────────────
-  const isViewing = server?.type === 'viewing'
+  // Per-channel viewType takes priority; falls back to the legacy server-level
+  // type for channels created before this field existed.
+  const isViewing = (channel?.viewType || (server?.type === 'viewing' ? 'viewing' : 'editing')) === 'viewing'
   const canPost = !isViewing
     || isOperator(currentUser)
     || server?.ownerId === currentUser?.uid
@@ -177,7 +284,7 @@ export default function MessageInput({ serverId, channelId, channelName, server,
     return (
       <div className="message-input-wrapper">
         <div className="viewing-locked">
-          👁️ This is a viewing-only server. Only permitted members can post.
+          👁️ This is a viewing-only channel. Only permitted members can post — but you can still react and vote on polls.
         </div>
       </div>
     )
@@ -452,7 +559,10 @@ export default function MessageInput({ serverId, channelId, channelName, server,
           avatarBg:     userData?.avatarBg    || null,
           pollQuestion: pollQuestion.trim(),
           pollOptions:  opts,
+          pollMode,
+          pollMaxSelect: pollMode === 'multiple' ? Math.max(1, Math.min(pollMaxSelect, opts.length)) : 1,
           pollVotes:    {},
+          pollVoterNames: {},
           createdAt:    serverTimestamp(),
         }
       )
@@ -460,6 +570,8 @@ export default function MessageInput({ serverId, channelId, channelName, server,
       setShowPoll(false)
       setPollQuestion('')
       setPollOptions(['', ''])
+      setPollMode('single')
+      setPollMaxSelect(2)
     } catch (err) {
       console.error('Failed to send poll:', err)
       setSendError('Failed to create poll.')
@@ -560,6 +672,27 @@ export default function MessageInput({ serverId, channelId, channelName, server,
               </div>
             ))}
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '8px 0', fontSize: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+              <input type="radio" checked={pollMode === 'single'} onChange={() => setPollMode('single')} />
+              Single answer
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+              <input type="radio" checked={pollMode === 'multiple'} onChange={() => setPollMode('multiple')} />
+              Multiple choice
+            </label>
+            {pollMode === 'multiple' && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                Pick up to
+                <input
+                  type="number" min={1} max={pollOptions.length}
+                  value={pollMaxSelect}
+                  onChange={e => setPollMaxSelect(Number(e.target.value) || 1)}
+                  style={{ width: 40, background: 'var(--bg-tertiary)', border: '1px solid var(--bg-modifier)', borderRadius: 4, color: 'var(--text-normal)', padding: '2px 4px' }}
+                />
+              </label>
+            )}
+          </div>
           <div className="poll-create-actions">
             {pollOptions.length < 4 && (
               <button className="poll-add-opt-btn" onClick={() => setPollOptions([...pollOptions, ''])}>
@@ -643,6 +776,45 @@ export default function MessageInput({ serverId, channelId, channelName, server,
             onClick={() => { setShowPoll(s => !s); setPollQuestion(''); setPollOptions(['', '']) }}
             title="Create a poll"
           >📊</button>
+
+          {/* GIF picker */}
+          <div className="emoji-picker-wrap" ref={gifRef}>
+            <button className="emoji-btn" onClick={() => setShowGif(s => !s)} title="Send a GIF">🎬</button>
+            {showGif && (
+              <div className="emoji-panel" style={{ width: 280 }}>
+                <input
+                  className="poll-create-input"
+                  placeholder="Search GIFs…"
+                  value={gifQuery}
+                  onChange={e => handleGifSearch(e.target.value)}
+                  autoFocus
+                  style={{ marginBottom: 8 }}
+                />
+                {!import.meta.env.VITE_GIPHY_API_KEY && (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: 6 }}>
+                    GIF search isn't configured yet.
+                  </div>
+                )}
+                {gifLoading && (
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: 6 }}>Loading…</div>
+                )}
+                <div style={{
+                  display: 'grid', gridTemplateColumns: '1fr 1fr',
+                  gap: 6, maxHeight: 260, overflowY: 'auto',
+                }}>
+                  {gifResults.map(g => (
+                    <img
+                      key={g.id}
+                      src={g.images?.fixed_width_small?.url || g.images?.preview_gif?.url}
+                      alt={g.title}
+                      style={{ width: '100%', borderRadius: 6, cursor: 'pointer', display: 'block' }}
+                      onClick={() => sendGif(g.images?.original?.url || g.images?.fixed_width?.url)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Emoji picker */}
           <div className="emoji-picker-wrap" ref={emojiRef}>

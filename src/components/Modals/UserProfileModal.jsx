@@ -247,26 +247,32 @@ export default function UserProfileModal({ onStartDM }) {
               </div>
             )}
 
-            {/* Send message button */}
-            {!isSelf && onStartDM && (
-              <button
-                onClick={() => { onStartDM(profileUid); closeProfile() }}
-                style={{
-                  width: '100%', marginTop: 4,
-                  background: 'var(--accent)', border: 'none', borderRadius: 8,
-                  color: '#fff', fontWeight: 800, fontSize: 14,
-                  padding: '10px 0', cursor: 'pointer',
-                  transition: 'background 0.15s',
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-hover)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'var(--accent)'}
-              >
-                💬 Send Message
-              </button>
-            )}
-
           </>)}
         </div>
+
+        {/* Send message button — sticky so it's always reachable even with a long bio */}
+        {!loading && user && !isSelf && onStartDM && (
+          <div style={{
+            position: 'sticky', bottom: 0,
+            padding: '12px 20px', background: 'var(--bg-secondary)',
+            borderTop: '1px solid var(--bg-active)',
+          }}>
+            <button
+              onClick={() => { onStartDM(profileUid); closeProfile() }}
+              style={{
+                width: '100%',
+                background: 'var(--accent)', border: 'none', borderRadius: 8,
+                color: '#fff', fontWeight: 800, fontSize: 14,
+                padding: '10px 0', cursor: 'pointer',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-hover)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'var(--accent)'}
+            >
+              💬 Send Message
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

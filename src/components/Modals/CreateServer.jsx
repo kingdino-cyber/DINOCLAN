@@ -7,7 +7,7 @@ import { generateDinoCode } from '../../utils/dinoCode'
 export default function CreateServer({ onClose }) {
   const { currentUser } = useAuth()
   const [name, setName] = useState('')
-  const [type, setType] = useState('editing')
+  const type = 'editing' // every new server starts editable — flip individual channels to viewing later
   const [loading, setLoading] = useState(false)
   const [createdCode, setCreatedCode] = useState(null)
   const [createdId, setCreatedId] = useState(null)
@@ -101,24 +101,6 @@ export default function CreateServer({ onClose }) {
             autoFocus
             maxLength={100}
           />
-
-          <label style={{ marginTop: 14 }}>Server Type</label>
-          <div className="server-type-picker">
-            <div className={`server-type-option ${type === 'editing' ? 'selected' : ''}`} onClick={() => setType('editing')}>
-              <div className="server-type-icon">✏️</div>
-              <div>
-                <div className="server-type-name">Editing</div>
-                <div className="server-type-desc">Everyone can send messages and interact.</div>
-              </div>
-            </div>
-            <div className={`server-type-option ${type === 'viewing' ? 'selected' : ''}`} onClick={() => setType('viewing')}>
-              <div className="server-type-icon">👁️</div>
-              <div>
-                <div className="server-type-name">Viewing</div>
-                <div className="server-type-desc">Only you (and people you grant access) can post.</div>
-              </div>
-            </div>
-          </div>
 
           <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 12 }}>
             A unique 🦕 dino emoji code will be generated automatically for others to join.

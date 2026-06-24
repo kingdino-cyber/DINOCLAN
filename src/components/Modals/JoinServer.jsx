@@ -80,11 +80,12 @@ export default function JoinServer({ onClose }) {
         const firstText = channelsSnap.docs.find(d => (d.data().type || 'text') === 'text')
         if (firstText) {
           const joinerName = currentUser.displayName || currentUser.email || 'Someone'
+          const place = serverData.kind === 'group' ? 'group' : 'server'
           await addDoc(
             collection(db, 'servers', serverDoc.id, 'channels', firstText.id, 'messages'),
             {
               type:      'system',
-              content:   `👋 ${joinerName} joined the server.`,
+              content:   `👋 ${joinerName} joined the ${place}.`,
               createdAt: serverTimestamp(),
             }
           )

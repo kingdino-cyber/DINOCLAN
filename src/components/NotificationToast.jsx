@@ -26,7 +26,7 @@ export default function NotificationToast({
   useEffect(() => { onStartDMRef.current     = onStartDM        }, [onStartDM])
   useEffect(() => { onNavigateRef.current    = onNavigateToServer }, [onNavigateToServer])
 
-  const initialized = useRef(false)
+  const mountTimeRef = useRef(Date.now())
 
   // Ask for desktop notification permission once on mount
   useEffect(() => {
@@ -46,16 +46,23 @@ export default function NotificationToast({
     )
 
     const unsub = onSnapshot(q, snap => {
-      // Skip the very first snapshot — that's existing data, not new messages
-      if (!initialized.current) {
-        initialized.current = true
-        return
-      }
 
       snap.docChanges().forEach(change => {
         if (change.type !== 'added') return
         const data    = change.doc.data()
         const notifId = change.doc.id
+
+        // Skip notifications created before this page loaded — these are a
+        // backlog (e.g. from before a missing Firestore index was fixed),
+        // not genuinely new messages. Just mark them read silently.
+        const createdMs = data.createdAt?.toMillis?.() ?? 0
+        if (createdMs && createdMs < mountTimeRef.current) {
+          updateDoc(
+            doc(db, 'users', currentUser.uid, 'notifications', notifId),
+            { read: true }
+          ).catch(() => {})
+          return
+        }
 
         const isServer = data.type === 'server'
 

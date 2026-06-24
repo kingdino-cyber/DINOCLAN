@@ -13,6 +13,7 @@ export default function CreateGroup({ onClose }) {
     if (!name.trim() || loading) return
     setLoading(true)
     try {
+      // Groups are invite-only — no join code, unlike servers
       const ref = await addDoc(collection(db, 'servers'), {
         name: name.trim(),
         ownerId: currentUser.uid,

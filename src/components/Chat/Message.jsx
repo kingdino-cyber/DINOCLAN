@@ -102,54 +102,121 @@ function FileAttachment({ url, name, size, type }) {
 /* ── Poll message ── */
 function PollMessage({ message, messageRef }) {
   const { currentUser } = useAuth()
-  const votes = message.pollVotes || {}
+  const [showResults, setShowResults] = useState(false)
+  const votes      = message.pollVotes || {}
+  const voterNames = message.pollVoterNames || {}
+  const mode       = message.pollMode || 'single'
+  const maxSelect  = message.pollMaxSelect || 1
+  const isCreator  = message.uid === currentUser?.uid
 
   const totalVotes = Object.values(votes).reduce(
     (sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0), 0
   )
 
-  const myVote = (message.pollOptions || []).findIndex(
-    (_, i) => Array.isArray(votes[String(i)]) && votes[String(i)].includes(currentUser?.uid)
-  )
+  const myVotes = (message.pollOptions || [])
+    .map((_, i) => i)
+    .filter(i => Array.isArray(votes[String(i)]) && votes[String(i)].includes(currentUser?.uid))
 
   async function vote(index) {
     if (!currentUser?.uid) return
     const updates = {}
-    if (myVote === index) {
+    const myName = currentUser.displayName || currentUser.email || 'Someone'
+    const alreadyVoted = myVotes.includes(index)
+
+    if (alreadyVoted) {
       updates[`pollVotes.${index}`] = arrayRemove(currentUser.uid)
-    } else {
-      if (myVote >= 0) {
-        updates[`pollVotes.${myVote}`] = arrayRemove(currentUser.uid)
-      }
+    } else if (mode === 'single') {
+      myVotes.forEach(i => { updates[`pollVotes.${i}`] = arrayRemove(currentUser.uid) })
       updates[`pollVotes.${index}`] = arrayUnion(currentUser.uid)
+      updates[`pollVoterNames.${currentUser.uid}`] = myName
+    } else {
+      if (myVotes.length >= maxSelect) return // at the multi-select cap
+      updates[`pollVotes.${index}`] = arrayUnion(currentUser.uid)
+      updates[`pollVoterNames.${currentUser.uid}`] = myName
     }
     await updateDoc(messageRef, updates)
   }
 
   return (
     <div className="poll-message">
-      <div className="poll-question">📊 {message.pollQuestion}</div>
+      <div className="poll-question">
+        📊 {message.pollQuestion}
+        {mode === 'multiple' && <span className="poll-mode-tag">pick up to {maxSelect}</span>}
+      </div>
       {(message.pollOptions || []).map((option, i) => {
-        const count  = Array.isArray(votes[String(i)]) ? votes[String(i)].length : 0
+        const voterUids = Array.isArray(votes[String(i)]) ? votes[String(i)] : []
+        const count  = voterUids.length
         const pct    = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0
-        const voted  = myVote === i
+        const voted  = myVotes.includes(i)
+        const atCap  = mode === 'multiple' && !voted && myVotes.length >= maxSelect
         return (
-          <button
-            key={i}
-            className={`poll-option-btn ${voted ? 'voted' : ''}`}
-            onClick={() => vote(i)}
-          >
-            <div className="poll-option-top">
-              <span className="poll-option-text">{option}</span>
-              <span className="poll-option-count">{count} {count === 1 ? 'vote' : 'votes'} · {pct}%</span>
-            </div>
-            <div className="poll-bar">
-              <div className="poll-bar-fill" style={{ width: `${pct}%` }} />
-            </div>
-          </button>
+          <div key={i}>
+            <button
+              className={`poll-option-btn ${voted ? 'voted' : ''} ${atCap ? 'at-cap' : ''}`}
+              onClick={() => vote(i)}
+              title={atCap ? `You can only pick up to ${maxSelect} — deselect one first` : undefined}
+            >
+              <div className="poll-option-top">
+                <span className="poll-option-text">{option}</span>
+                <span className="poll-option-count">{count} {count === 1 ? 'vote' : 'votes'} · {pct}%</span>
+              </div>
+              <div className="poll-bar">
+                <div className="poll-bar-fill" style={{ width: `${pct}%` }} />
+              </div>
+            </button>
+            {showResults && isCreator && (
+              <div className="poll-voter-list">
+                {voterUids.length === 0
+                  ? <span className="poll-voter-empty">No votes yet</span>
+                  : voterUids.map(uid => (
+                      <span key={uid} className="poll-voter-chip">{voterNames[uid] || 'Unknown'}</span>
+                    ))
+                }
+              </div>
+            )}
+          </div>
         )
       })}
-      <div className="poll-total">{totalVotes} total {totalVotes === 1 ? 'vote' : 'votes'}</div>
+      <div className="poll-total">
+        {totalVotes} total {totalVotes === 1 ? 'vote' : 'votes'}
+        {isCreator && (
+          <button className="poll-see-more" onClick={() => setShowResults(s => !s)}>
+            {showResults ? 'See less' : 'See more'}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥']
+
+/* ── Reaction chips shown below a message — anyone (even in viewing channels) can react ── */
+function ReactionBar({ message, messageRef }) {
+  const { currentUser } = useAuth()
+  const reactions = message.reactions || {}
+  const entries = Object.entries(reactions).filter(([, uids]) => Array.isArray(uids) && uids.length > 0)
+  if (entries.length === 0) return null
+
+  async function toggle(emoji, uids) {
+    const mine = uids.includes(currentUser?.uid)
+    await updateDoc(messageRef, {
+      [`reactions.${emoji}`]: mine ? arrayRemove(currentUser.uid) : arrayUnion(currentUser.uid),
+    })
+  }
+
+  return (
+    <div className="reaction-bar" onClick={e => e.stopPropagation()}>
+      {entries.map(([emoji, uids]) => (
+        <button
+          key={emoji}
+          className={`reaction-chip ${uids.includes(currentUser?.uid) ? 'mine' : ''}`}
+          onClick={() => toggle(emoji, uids)}
+          title={`${uids.length} reacted`}
+        >
+          {emoji} <span className="reaction-count">{uids.length}</span>
+        </button>
+      ))}
     </div>
   )
 }
@@ -157,6 +224,17 @@ function PollMessage({ message, messageRef }) {
 /* ── Hover action bar ── */
 function MessageActions({ message, serverId, channelId, onEdit, onDelete, onReply, canEdit, canDelete }) {
   const { currentUser } = useAuth()
+  const [showReactPicker, setShowReactPicker] = useState(false)
+  const messageRef = doc(db, 'servers', serverId, 'channels', channelId, 'messages', message.id)
+
+  async function addReaction(emoji) {
+    setShowReactPicker(false)
+    const uids = message.reactions?.[emoji] || []
+    const mine = uids.includes(currentUser?.uid)
+    await updateDoc(messageRef, {
+      [`reactions.${emoji}`]: mine ? arrayRemove(currentUser.uid) : arrayUnion(currentUser.uid),
+    })
+  }
 
   async function toggleImportant() {
     await updateDoc(
@@ -175,6 +253,18 @@ function MessageActions({ message, serverId, channelId, onEdit, onDelete, onRepl
 
   return (
     <div className="msg-action-bar" onClick={e => e.stopPropagation()}>
+      <div style={{ position: 'relative' }}>
+        <button className="msg-action-btn" onClick={() => setShowReactPicker(s => !s)} title="Add reaction">
+          😊
+        </button>
+        {showReactPicker && (
+          <div className="quick-react-popover" onMouseLeave={() => setShowReactPicker(false)}>
+            {QUICK_REACTIONS.map(emoji => (
+              <button key={emoji} className="quick-react-item" onClick={() => addReaction(emoji)}>{emoji}</button>
+            ))}
+          </div>
+        )}
+      </div>
       {onReply && (
         <button className="msg-action-btn" onClick={() => onReply(message)} title="Reply">
           ↩️
@@ -250,19 +340,17 @@ function EditBox({ original, messageRef, onDone }) {
   )
 }
 
-/* ── Reply quote block ── */
-function ReplyQuote({ replyTo }) {
+/* ── Reply quote line — Discord-style connector above the message row ── */
+function ReplyQuote({ replyTo, onJump }) {
   if (!replyTo) return null
   const preview = replyTo.content
     ? replyTo.content.slice(0, 120)
     : replyTo.imageURL ? '📷 Image' : '📎 Attachment'
   return (
-    <div className="reply-quote">
-      <div className="reply-quote-bar" />
-      <div className="reply-quote-inner">
-        <span className="reply-quote-author">↩️ {replyTo.displayName}</span>
-        <span className="reply-quote-text">{preview}</span>
-      </div>
+    <div className="reply-quote-line" onClick={onJump}>
+      <span className="reply-connector" />
+      <span className="reply-quote-line-author">{replyTo.displayName}</span>
+      <span className="reply-quote-line-text">{preview}</span>
     </div>
   )
 }
@@ -336,15 +424,24 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
     />
   )
 
+  function jumpToReplied(e) {
+    e.stopPropagation()
+    const id = message.replyTo?.messageId
+    if (!id) return
+    const el = document.querySelector(`[data-message-id="${id}"]`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el.classList.add('msg-flash')
+      setTimeout(() => el.classList.remove('msg-flash'), 1500)
+    }
+  }
+
   const body = (
     <>
       {isPoll ? (
         <PollMessage message={message} messageRef={messageRef} />
       ) : (
         <>
-          {/* Reply quote block */}
-          {message.replyTo && <ReplyQuote replyTo={message.replyTo} />}
-
           {message.content && !editing && (
             <p className="msg-content">
               {message.content}
@@ -379,6 +476,7 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
               type={message.fileType}
             />
           )}
+          <ReactionBar message={message} messageRef={messageRef} />
         </>
       )}
     </>
@@ -389,15 +487,19 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
       <div
         className={`message-group continued ${importantClass} ${pinnedClass}`}
         style={{ position: 'relative' }}
+        data-message-id={message.id}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
       >
         {message.pinned && <span className="pin-label">📌 Pinned</span>}
-        <span className="msg-ts-inline">{formatTimestamp(message.createdAt, true)}</span>
-        <div className="msg-avatar"><Avatar user={fakeUser} size={40} /></div>
-        <div className="msg-body">{body}</div>
-        {message.important && <span className="importance-badge">⚠️ Important</span>}
-        {actions}
+        {message.replyTo && <ReplyQuote replyTo={message.replyTo} onJump={jumpToReplied} />}
+        <div className="msg-row">
+          <span className="msg-ts-inline">{formatTimestamp(message.createdAt, true)}</span>
+          <div className="msg-avatar"><Avatar user={fakeUser} size={40} /></div>
+          <div className="msg-body">{body}</div>
+          {message.important && <span className="importance-badge">⚠️ Important</span>}
+          {actions}
+        </div>
       </div>
     )
   }
@@ -406,29 +508,33 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
     <div
       className={`message-group first ${importantClass} ${pinnedClass}`}
       style={{ position: 'relative' }}
+      data-message-id={message.id}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
       {message.pinned && <span className="pin-label">📌 Pinned</span>}
-      <div className="msg-avatar"><Avatar user={fakeUser} size={40} /></div>
-      <div className="msg-body">
-        <div className="msg-header">
-          {serverRankTag}
-          {globalRankTag}
-          <span
-            className="msg-author"
-            style={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}
-            onClick={handleAuthorClick}
-            title={`View ${message.displayName}'s profile`}
-          >
-            {message.displayName}
-          </span>
-          <span className="msg-ts">{formatTimestamp(message.createdAt)}</span>
+      {message.replyTo && <ReplyQuote replyTo={message.replyTo} onJump={jumpToReplied} />}
+      <div className="msg-row">
+        <div className="msg-avatar"><Avatar user={fakeUser} size={40} /></div>
+        <div className="msg-body">
+          <div className="msg-header">
+            {serverRankTag}
+            {globalRankTag}
+            <span
+              className="msg-author"
+              style={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}
+              onClick={handleAuthorClick}
+              title={`View ${message.displayName}'s profile`}
+            >
+              {message.displayName}
+            </span>
+            <span className="msg-ts">{formatTimestamp(message.createdAt)}</span>
+          </div>
+          {body}
         </div>
-        {body}
+        {message.important && <span className="importance-badge">⚠️ Important</span>}
+        {actions}
       </div>
-      {message.important && <span className="importance-badge">⚠️ Important</span>}
-      {actions}
     </div>
   )
 }

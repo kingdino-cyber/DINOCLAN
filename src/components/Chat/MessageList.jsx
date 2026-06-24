@@ -7,9 +7,10 @@ import { useAuth } from '../../contexts/AuthContext'
 import { playMessageSound } from '../../utils/sounds'
 import Message from './Message'
 
-export default function MessageList({ serverId, channelId, channelName, onReply }) {
+export default function MessageList({ serverId, channelId, channelName, onReply, jumpToMessageId, onJumpHandled }) {
   const { currentUser } = useAuth()
   const [messages, setMessages] = useState([])
+  const [loadLimit, setLoadLimit] = useState(50)
   const bottomRef   = useRef(null)
   const containerRef = useRef(null)
   const isFirstLoad  = useRef(true)
@@ -33,12 +34,17 @@ export default function MessageList({ serverId, channelId, channelName, onReply 
     if (!serverId || !channelId) return
     isFirstLoad.current  = true
     userScrolledUp.current = false
+    setLoadLimit(50)
     setMessages([])
+  }, [serverId, channelId])
+
+  useEffect(() => {
+    if (!serverId || !channelId) return
 
     const q = query(
       collection(db, 'servers', serverId, 'channels', channelId, 'messages'),
       orderBy('createdAt', 'asc'),
-      limitToLast(50),          // 50 most-recent messages — fast initial load
+      limitToLast(loadLimit),   // 50 most-recent by default — bumped when jumping to an older message
     )
 
     const unsub = onSnapshot(q, snap => {
@@ -73,7 +79,28 @@ export default function MessageList({ serverId, channelId, channelName, onReply 
     })
 
     return unsub
-  }, [serverId, channelId])
+  }, [serverId, channelId, loadLimit])
+
+  // Jump to a specific message — bump the load window until it's present, then scroll+flash
+  useEffect(() => {
+    if (!jumpToMessageId) return
+    const found = messages.find(m => m.id === jumpToMessageId)
+    if (found) {
+      requestAnimationFrame(() => {
+        const el = document.querySelector(`[data-message-id="${jumpToMessageId}"]`)
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          el.classList.add('msg-flash')
+          setTimeout(() => el.classList.remove('msg-flash'), 1500)
+        }
+        onJumpHandled?.()
+      })
+    } else if (loadLimit < 1000) {
+      setLoadLimit(l => l + 200)
+    } else {
+      onJumpHandled?.()
+    }
+  }, [jumpToMessageId, messages]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (messages.length === 0) {
     return (
