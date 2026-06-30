@@ -15,8 +15,8 @@ function PrivateRoute({ children }) {
 }
 
 function PublicRoute({ children }) {
-  const { currentUser, twoFactorPending } = useAuth()
-  if (!currentUser || twoFactorPending) return children
+  const { currentUser } = useAuth()
+  if (!currentUser) return children
   if (!currentUser.emailVerified) return <Navigate to="/verify-email" replace />
   return <Navigate to="/app" replace />
 }
