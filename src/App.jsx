@@ -9,16 +9,12 @@ import WordCounter from './components/WordCounter/WordCounter'
 
 function PrivateRoute({ children }) {
   const { currentUser } = useAuth()
-  if (!currentUser) return <Navigate to="/login" replace />
-  if (!currentUser.emailVerified) return <Navigate to="/verify-email" replace />
-  return children
+  return currentUser ? children : <Navigate to="/login" replace />
 }
 
 function PublicRoute({ children }) {
   const { currentUser } = useAuth()
-  if (!currentUser) return children
-  if (!currentUser.emailVerified) return <Navigate to="/verify-email" replace />
-  return <Navigate to="/app" replace />
+  return !currentUser ? children : <Navigate to="/app" replace />
 }
 
 export default function App() {
