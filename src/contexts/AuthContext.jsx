@@ -23,7 +23,9 @@ export function AuthProvider({ children }) {
     const cred = await createUserWithEmailAndPassword(auth, email, password)
     await updateProfile(cred.user, { displayName })
     // Send email verification so only real emails can be used
-    sendEmailVerification(cred.user).catch(() => {})
+    sendEmailVerification(cred.user, {
+      url: 'https://dinoclan.netlify.app/login',
+    }).catch(() => {})
     setDoc(doc(db, 'users', cred.user.uid), {
       uid: cred.user.uid,
       displayName,
@@ -44,7 +46,9 @@ export function AuthProvider({ children }) {
   }
 
   async function resendVerificationEmail() {
-    if (auth.currentUser) await sendEmailVerification(auth.currentUser)
+    if (auth.currentUser) await sendEmailVerification(auth.currentUser, {
+      url: 'https://dinoclan.netlify.app/login',
+    })
   }
 
   async function login(email, password) {
