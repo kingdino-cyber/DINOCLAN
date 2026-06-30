@@ -94,8 +94,8 @@ export default function NotificationToast({
         setToasts(prev => [...prev, toast])
         setTimeout(() => dismiss(notifId), 6000)
 
-        // Desktop notification
-        if ('Notification' in window && Notification.permission === 'granted') {
+        // Desktop notification — only when tab is not visible
+        if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
           try {
             const title = isServer
               ? `🦕 ${data.fromName} in #${data.channelName}`
