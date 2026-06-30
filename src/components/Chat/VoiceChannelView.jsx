@@ -3,6 +3,7 @@ import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/fire
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCall } from '../../contexts/CallContext'
+import { useSpeaking } from '../../utils/useSpeaking'
 import Avatar from './Avatar'
 
 // ── Camera SVG icon (single icon, changes style based on state) ──────────────
@@ -35,6 +36,7 @@ function ScreenIcon({ on, size = 20 }) {
 function VideoTile({ uid, name, stream, isLocal, hasVideoOn, isScreenShare }) {
   const videoRef  = useRef(null)
   const [userData, setUserData] = useState(null)
+  const speaking = useSpeaking(stream)
 
   useEffect(() => {
     if (!uid) return
@@ -58,7 +60,7 @@ function VideoTile({ uid, name, stream, isLocal, hasVideoOn, isScreenShare }) {
   }
 
   return (
-    <div className="voice-tile">
+    <div className={`voice-tile ${speaking ? 'speaking' : ''}`}>
       {hasVideoOn && stream ? (
         <video
           ref={videoRef}
@@ -70,7 +72,9 @@ function VideoTile({ uid, name, stream, isLocal, hasVideoOn, isScreenShare }) {
         />
       ) : (
         <div className="voice-tile-placeholder">
-          <Avatar user={fakeUser} size={80} />
+          <div className={`speaking-ring-wrap ${speaking ? 'speaking' : ''}`}>
+            <Avatar user={fakeUser} size={80} />
+          </div>
         </div>
       )}
       <div className="voice-tile-label">

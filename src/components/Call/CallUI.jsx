@@ -3,6 +3,7 @@ import { doc, onSnapshot } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCall } from '../../contexts/CallContext'
+import { useSpeaking } from '../../utils/useSpeaking'
 import Avatar from '../Chat/Avatar'
 
 // Single camera SVG — no double-emoji rendering issues
@@ -43,8 +44,9 @@ function AudioElement({ stream }) {
 }
 
 // Fetches user data and shows their real avatar in DM call bubble
-function UserBubble({ uid, name, isYou, isMuted }) {
+function UserBubble({ uid, name, isYou, isMuted, stream }) {
   const [userData, setUserData] = useState(null)
+  const speaking = useSpeaking(stream)
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'users', uid), snap => {
       if (snap.exists()) setUserData(snap.data())
@@ -61,7 +63,7 @@ function UserBubble({ uid, name, isYou, isMuted }) {
 
   return (
     <div className="call-participant">
-      <div className={`call-avatar-wrap ${isMuted && isYou ? 'muted' : ''}`}>
+      <div className={`call-avatar-wrap ${isMuted && isYou ? 'muted' : ''} ${speaking ? 'speaking' : ''}`}>
         <Avatar user={fakeUser} size={40} />
         {isMuted && isYou && <span className="call-muted-icon">🔇</span>}
       </div>
@@ -73,7 +75,7 @@ function UserBubble({ uid, name, isYou, isMuted }) {
 export default function CallUI() {
   const { currentUser }  = useAuth()
   const {
-    activeCall, remoteStreams,
+    activeCall, remoteStreams, localStream,
     isMuted, toggleMute,
     hasVideo, toggleVideo,
     isScreenSharing,
@@ -123,15 +125,19 @@ export default function CallUI() {
         </div>
 
         <div className="call-participants">
-          {participants.map(p => (
-            <UserBubble
-              key={p.uid}
-              uid={p.uid}
-              name={p.name}
-              isYou={p.uid === currentUser?.uid}
-              isMuted={p.uid === currentUser?.uid && isMuted}
-            />
-          ))}
+          {participants.map(p => {
+            const isYou = p.uid === currentUser?.uid
+            return (
+              <UserBubble
+                key={p.uid}
+                uid={p.uid}
+                name={p.name}
+                isYou={isYou}
+                isMuted={isYou && isMuted}
+                stream={isYou ? localStream : remoteStreams[p.uid]}
+              />
+            )
+          })}
         </div>
 
         <div className="call-controls">

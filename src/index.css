@@ -1063,6 +1063,11 @@ html, body, #root {
   flex-shrink: 0;
 }
 .call-avatar-wrap.muted { border-color: var(--danger); }
+.call-avatar-wrap.speaking {
+  border-color: #3ba55c;
+  box-shadow: 0 0 0 3px rgba(59,165,92,0.55);
+  transition: box-shadow 0.1s, border-color 0.1s;
+}
 
 .call-muted-icon {
   position: absolute;
@@ -2188,6 +2193,19 @@ html, body, #root {
   transition: border-color .2s;
 }
 .voice-tile:hover { border-color: var(--accent); }
+.voice-tile.speaking {
+  border-color: #3ba55c;
+  box-shadow: 0 0 0 3px rgba(59,165,92,0.45);
+}
+.speaking-ring-wrap {
+  display: inline-flex;
+  border-radius: 50%;
+  padding: 3px;
+  transition: box-shadow 0.1s;
+}
+.speaking-ring-wrap.speaking {
+  box-shadow: 0 0 0 3px #3ba55c, 0 0 14px 2px rgba(59,165,92,0.6);
+}
 .voice-tile-video {
   position: absolute;
   inset: 0;
