@@ -3,17 +3,22 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { CallProvider } from './contexts/CallContext'
 import Login from './components/Auth/Login'
 import Register from './components/Auth/Register'
+import VerifyEmail from './components/Auth/VerifyEmail'
 import MainLayout from './components/Layout/MainLayout'
 import WordCounter from './components/WordCounter/WordCounter'
 
 function PrivateRoute({ children }) {
   const { currentUser } = useAuth()
-  return currentUser ? children : <Navigate to="/login" replace />
+  if (!currentUser) return <Navigate to="/login" replace />
+  if (!currentUser.emailVerified) return <Navigate to="/verify-email" replace />
+  return children
 }
 
 function PublicRoute({ children }) {
   const { currentUser } = useAuth()
-  return !currentUser ? children : <Navigate to="/app" replace />
+  if (!currentUser) return children
+  if (!currentUser.emailVerified) return <Navigate to="/verify-email" replace />
+  return <Navigate to="/app" replace />
 }
 
 export default function App() {
@@ -22,10 +27,11 @@ export default function App() {
       <BrowserRouter>
         <CallProvider>
           <Routes>
-            <Route path="/"          element={<WordCounter />} />
-            <Route path="/login"     element={<PublicRoute><Login /></PublicRoute>} />
-            <Route path="/register"  element={<PublicRoute><Register /></PublicRoute>} />
-            <Route path="/app/*"     element={<PrivateRoute><MainLayout /></PrivateRoute>} />
+            <Route path="/"             element={<WordCounter />} />
+            <Route path="/login"        element={<PublicRoute><Login /></PublicRoute>} />
+            <Route path="/register"     element={<PublicRoute><Register /></PublicRoute>} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
+            <Route path="/app/*"        element={<PrivateRoute><MainLayout /></PrivateRoute>} />
           </Routes>
         </CallProvider>
       </BrowserRouter>
