@@ -1,24 +1,13 @@
-import { useState, useEffect } from 'react'
-import { doc, onSnapshot } from 'firebase/firestore'
-import { db } from '../../firebase'
+import { useState } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import Avatar from '../Chat/Avatar'
 import Settings from '../Modals/Settings'
 
 export default function UserPanel() {
-  const { currentUser, logout } = useAuth()
-  const [userData, setUserData] = useState(null)
+  const { currentUser, myProfile, logout } = useAuth()
   const [showSettings, setShowSettings] = useState(false)
 
-  useEffect(() => {
-    if (!currentUser) return
-    const unsub = onSnapshot(doc(db, 'users', currentUser.uid), snap => {
-      if (snap.exists()) setUserData({ uid: snap.id, ...snap.data() })
-    })
-    return unsub
-  }, [currentUser?.uid])
-
-  const user = userData || {
+  const user = myProfile || {
     uid: currentUser?.uid,
     displayName: currentUser?.displayName || currentUser?.email,
     photoURL: currentUser?.photoURL,

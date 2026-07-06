@@ -10,7 +10,7 @@ import {
   EmailAuthProvider,
   sendEmailVerification,
 } from 'firebase/auth'
-import { doc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore'
+import { doc, setDoc, serverTimestamp, updateDoc, onSnapshot } from 'firebase/firestore'
 import { auth, db } from '../firebase'
 
 const AuthContext = createContext(null)
@@ -23,6 +23,7 @@ const ACTION_CODE_SETTINGS = {
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [myProfile, setMyProfile] = useState(null) // Firestore users/{uid} doc — shared across all UserPanel instances
 
   async function register(email, password, displayName) {
     const cred = await createUserWithEmailAndPassword(auth, email, password)
@@ -88,8 +89,19 @@ export function AuthProvider({ children }) {
     return unsub
   }, [])
 
+  // Keep a single, shared copy of the Firestore profile doc so components
+  // that show the user's avatar/name (UserPanel appears in multiple places)
+  // don't each mount their own listener and flash stale data on remount.
+  useEffect(() => {
+    if (!currentUser?.uid) { setMyProfile(null); return }
+    const unsub = onSnapshot(doc(db, 'users', currentUser.uid), snap => {
+      if (snap.exists()) setMyProfile({ uid: snap.id, ...snap.data() })
+    })
+    return unsub
+  }, [currentUser?.uid])
+
   return (
-    <AuthContext.Provider value={{ currentUser, register, login, logout, changePassword, resendVerificationEmail, loading }}>
+    <AuthContext.Provider value={{ currentUser, myProfile, register, login, logout, changePassword, resendVerificationEmail, loading }}>
       {!loading && children}
     </AuthContext.Provider>
   )

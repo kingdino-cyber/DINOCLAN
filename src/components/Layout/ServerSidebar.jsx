@@ -31,7 +31,7 @@ function CtxMenu({ server, currentUser, pos, onClose, onLeave, onDisband, onInvi
   )
 }
 
-export default function ServerSidebar({ activeServerId, onSelectServer }) {
+export default function ServerSidebar({ activeServerId, onSelectServer, discoverActive, onOpenDiscover }) {
   const { currentUser } = useAuth()
   const [servers, setServers] = useState([])
   const [modal, setModal] = useState(null)
@@ -69,50 +69,67 @@ export default function ServerSidebar({ activeServerId, onSelectServer }) {
 
   return (
     <div className="server-sidebar">
-      {/* Home */}
-      <div
-        className={`server-icon ${!activeServerId ? 'active' : ''}`}
-        onClick={() => onSelectServer(null)}
-        data-tooltip="Home"
-      >🦕</div>
+      <div className="server-sidebar-scroll">
+        {/* Home */}
+        <div
+          className={`server-icon ${!activeServerId && !discoverActive ? 'active' : ''}`}
+          onClick={() => onSelectServer(null)}
+          data-tooltip="Home"
+        >🦕</div>
 
-      <div className="server-divider" />
+        <div className="server-divider" />
 
-      {/* Server icons */}
-      {servers.map(srv => (
-        <div key={srv.id} className="server-icon-wrap">
-          <div
-            className={`server-icon ${activeServerId === srv.id ? 'active' : ''}`}
-            onClick={() => onSelectServer(srv.id)}
-            data-tooltip={srv.name}
-          >
-            {srv.photoURL ? <img src={srv.photoURL} alt={srv.name} /> : getInitials(srv.name)}
+        {/* Server icons */}
+        {servers.map(srv => (
+          <div key={srv.id} className="server-icon-wrap">
+            <div
+              className={`server-icon ${activeServerId === srv.id ? 'active' : ''}`}
+              onClick={() => onSelectServer(srv.id)}
+              data-tooltip={srv.name}
+            >
+              {srv.photoURL ? <img src={srv.photoURL} alt={srv.name} /> : getInitials(srv.name)}
+            </div>
+            <button
+              className="server-dots-btn"
+              onClick={e => openMenu(e, srv)}
+              title="Server options"
+            >⋯</button>
+
+            {menu?.server?.id === srv.id && (
+              <CtxMenu
+                server={menu.server}
+                currentUser={currentUser}
+                pos={menu.pos}
+                onClose={() => setMenu(null)}
+                onLeave={() => handleLeave(menu.server)}
+                onDisband={() => handleDisband(menu.server)}
+                onInvite={() => { setInviteServer(menu.server); setMenu(null) }}
+              />
+            )}
           </div>
-          <button
-            className="server-dots-btn"
-            onClick={e => openMenu(e, srv)}
-            title="Server options"
-          >⋯</button>
+        ))}
 
-          {menu?.server?.id === srv.id && (
-            <CtxMenu
-              server={menu.server}
-              currentUser={currentUser}
-              pos={menu.pos}
-              onClose={() => setMenu(null)}
-              onLeave={() => handleLeave(menu.server)}
-              onDisband={() => handleDisband(menu.server)}
-              onInvite={() => { setInviteServer(menu.server); setMenu(null) }}
-            />
-          )}
+        <div className="server-divider" />
+
+        {/* Create / Join */}
+        <div className="server-icon server-icon-add" onClick={() => setModal('create')} data-tooltip="Create a Server">+</div>
+        <div className="server-icon server-icon-add" onClick={() => setModal('join')} data-tooltip="Join a Server" style={{ fontSize: 14, fontWeight: 700 }}>→</div>
+      </div>
+
+      {/* Discover — pinned to the bottom, Discord-style */}
+      <div className="server-sidebar-bottom">
+        <div className="server-divider" />
+        <div
+          className={`server-icon server-icon-discover ${discoverActive ? 'active' : ''}`}
+          onClick={onOpenDiscover}
+          data-tooltip="Discover"
+        >
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="9.25" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M15.5 8.5L13 13L8.5 15.5L11 11L15.5 8.5Z" fill="currentColor" />
+          </svg>
         </div>
-      ))}
-
-      <div className="server-divider" />
-
-      {/* Create / Join */}
-      <div className="server-icon server-icon-add" onClick={() => setModal('create')} data-tooltip="Create a Server">+</div>
-      <div className="server-icon server-icon-add" onClick={() => setModal('join')} data-tooltip="Join a Server" style={{ fontSize: 14, fontWeight: 700 }}>→</div>
+      </div>
 
       {modal === 'create' && <CreateServer onClose={id => { setModal(null); if (id) onSelectServer(id) }} />}
       {modal === 'join' && <JoinServer onClose={id => { setModal(null); if (id) onSelectServer(id) }} />}

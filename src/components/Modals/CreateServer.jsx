@@ -8,6 +8,7 @@ export default function CreateServer({ onClose }) {
   const { currentUser } = useAuth()
   const [name, setName] = useState('')
   const type = 'editing' // every new server starts editable — flip individual channels to viewing later
+  const [isPublic, setIsPublic] = useState(true) // public by default
   const [loading, setLoading] = useState(false)
   const [createdCode, setCreatedCode] = useState(null)
   const [createdId, setCreatedId] = useState(null)
@@ -38,6 +39,7 @@ export default function CreateServer({ onClose }) {
         type,
         editors: [],
         joinCode,
+        isPublic,
       })
       await setDoc(
         doc(db, 'servers', serverRef.id, 'channels', 'general'),
@@ -105,6 +107,29 @@ export default function CreateServer({ onClose }) {
           <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 12 }}>
             A unique 🦕 dino emoji code will be generated automatically for others to join.
           </p>
+
+          <div
+            onClick={() => setIsPublic(p => !p)}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              marginTop: 14, padding: '10px 12px', borderRadius: 8,
+              background: 'var(--bg-tertiary)', cursor: 'pointer', userSelect: 'none',
+            }}
+          >
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 13 }}>
+                🔒 Private server
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                {isPublic
+                  ? "It's public by default — anyone can find and join it on the Discover page."
+                  : 'Only people with an invite or join code can join.'}
+              </div>
+            </div>
+            <div className={`toggle-switch ${!isPublic ? 'on' : ''}`}>
+              <div className="toggle-knob" />
+            </div>
+          </div>
 
           <div className="modal-actions">
             <button type="button" className="btn-ghost" onClick={() => onClose()}>Back</button>

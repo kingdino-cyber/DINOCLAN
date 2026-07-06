@@ -10,6 +10,7 @@ import ChatArea from './ChatArea'
 import DinoDecorations from '../DinoDecorations'
 import FriendsPanel from '../Friends/FriendsPanel'
 import HomeServersPanel from './HomeServersPanel'
+import DiscoverPanel from './DiscoverPanel'
 import DirectMessageView from '../Chat/DirectMessageView'
 import CallUI from '../Call/CallUI'
 import IncomingCallBanner from '../Call/IncomingCallBanner'
@@ -22,6 +23,7 @@ export default function MainLayout() {
   const [activeServer, setActiveServer]     = useState(null)
   const [activeChannelId, setActiveChannelId] = useState(null)
   const [activeDmUid, setActiveDmUid]       = useState(null)
+  const [showDiscover, setShowDiscover]     = useState(false)
 
   const location = useLocation()
   const navigate = useNavigate()
@@ -69,6 +71,7 @@ export default function MainLayout() {
     setActiveServerId(serverId)
     setActiveChannelId(null)
     setActiveDmUid(null)
+    setShowDiscover(false)
     if (serverId) {
       const snap = await getDocs(
         query(collection(db, 'servers', serverId, 'channels'), orderBy('position', 'asc'))
@@ -83,6 +86,13 @@ export default function MainLayout() {
   function handleStartDM(uid) {
     setActiveDmUid(uid)
     setActiveServerId(null)
+    setShowDiscover(false)
+  }
+
+  function handleOpenDiscover() {
+    setShowDiscover(true)
+    setActiveServerId(null)
+    setActiveDmUid(null)
   }
 
   function handleNavigateToServer(serverId, channelId) {
@@ -113,9 +123,13 @@ export default function MainLayout() {
         <ServerSidebar
           activeServerId={activeServerId}
           onSelectServer={handleSelectServer}
+          discoverActive={showDiscover}
+          onOpenDiscover={handleOpenDiscover}
         />
 
-        {!activeServerId ? (
+        {showDiscover ? (
+          <DiscoverPanel onSelectServer={handleSelectServer} />
+        ) : !activeServerId ? (
           <>
             <HomeServersPanel onSelectServer={handleSelectServer} />
             {activeDmUid ? (
