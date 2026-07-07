@@ -68,11 +68,11 @@ service cloud.firestore {
     // ── Friend Requests ────────────────────────────────────────────────────────
     match /friendRequests/{reqId} {
       allow read: if request.auth != null && (
-        resource.data.from == request.auth.uid || resource.data.to == request.auth.uid
+        resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid
       );
-      allow create: if request.auth != null && request.resource.data.from == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.fromUid == request.auth.uid;
       allow update, delete: if request.auth != null && (
-        resource.data.from == request.auth.uid || resource.data.to == request.auth.uid
+        resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid
       );
     }
 

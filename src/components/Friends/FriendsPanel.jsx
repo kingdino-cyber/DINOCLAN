@@ -209,6 +209,29 @@ export default function FriendsPanel({ onStartDM }) {
     setFriends(userData?.friends || [])
   }, [userData])
 
+  // Repair one-sided friendships caused by the old acceptRequest bug:
+  // find accepted requests where we were the recipient but the sender
+  // isn't in our friends list yet, and add them.
+  useEffect(() => {
+    if (!userData) return
+    async function repair() {
+      const snap = await getDocs(query(
+        collection(db, 'friendRequests'),
+        where('toUid', '==', currentUser.uid),
+        where('status', '==', 'accepted'),
+      ))
+      const myFriends = userData.friends || []
+      const missing = snap.docs
+        .map(d => d.data().fromUid)
+        .filter(uid => uid && !myFriends.includes(uid))
+      if (missing.length === 0) return
+      await updateDoc(doc(db, 'users', currentUser.uid), {
+        friends: arrayUnion(...missing),
+      })
+    }
+    repair().catch(() => {})
+  }, [currentUser.uid, userData])
+
   useEffect(() => {
     const q = query(
       collection(db, 'serverInvites'),
@@ -264,6 +287,7 @@ export default function FriendsPanel({ onStartDM }) {
       collection(db, 'friendRequests'),
       where('fromUid', '==', currentUser.uid),
       where('toUid', '==', target.id),
+      where('status', '==', 'pending'),
     ))
     if (!existing.empty) { setAddStatus('Request already sent!'); return }
     await addDoc(collection(db, 'friendRequests'), {
@@ -279,17 +303,8 @@ export default function FriendsPanel({ onStartDM }) {
 
   async function acceptRequest(req) {
     await updateDoc(doc(db, 'friendRequests', req.id), { status: 'accepted' })
-    await updateDoc(doc(db, 'users', currentUser.uid), {
-      friends: [...(userData?.friends || []), req.fromUid],
-    })
-    await getDocs(query(collection(db, 'users'), where('uid', '==', req.fromUid))).then(async snap => {
-      if (!snap.empty) {
-        const them = snap.docs[0].data()
-        await updateDoc(doc(db, 'users', req.fromUid), {
-          friends: [...(them.friends || []), currentUser.uid],
-        })
-      }
-    })
+    await updateDoc(doc(db, 'users', currentUser.uid), { friends: arrayUnion(req.fromUid) })
+    await updateDoc(doc(db, 'users', req.fromUid), { friends: arrayUnion(currentUser.uid) })
   }
   async function declineRequest(req) {
     await updateDoc(doc(db, 'friendRequests', req.id), { status: 'declined' })
