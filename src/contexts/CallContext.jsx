@@ -191,12 +191,19 @@ export function CallProvider({ children }) {
       where('to', '==', currentUser.uid),
     )
     signalsUnsubRef.current = onSnapshot(q, async snap => {
-      for (const change of snap.docChanges()) {
-        if (change.type !== 'added') continue
+      // Sort: offers first, answers second, ice-candidates last.
+      // Firestore delivers batches in arbitrary order — if ICE candidates
+      // arrive before the offer the peer doesn't exist yet and they get dropped.
+      const newChanges = snap.docChanges().filter(c =>
+        c.type === 'added' && !processedSignalsRef.current.has(c.doc.id)
+      )
+      const ordered = [
+        ...newChanges.filter(c => c.doc.data().type === 'offer'),
+        ...newChanges.filter(c => c.doc.data().type === 'answer'),
+        ...newChanges.filter(c => c.doc.data().type === 'ice-candidate'),
+      ]
+      for (const change of ordered) {
         const sigId = change.doc.id
-        // Skip signals we've already processed — Firestore re-delivers ALL docs
-        // as 'added' on reconnect, which would corrupt peer connection state
-        if (processedSignalsRef.current.has(sigId)) continue
         processedSignalsRef.current.add(sigId)
         const sig = change.doc.data()
         const fromUid = sig.from
