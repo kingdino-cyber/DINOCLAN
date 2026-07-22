@@ -50,7 +50,6 @@ export function CallProvider({ children }) {
       const d = snap.docs[0]
       const data = { callId: d.id, ...d.data() }
       setIncomingCall(data)
-      if (stopRingRef.current) stopRingRef.current()
       stopRingRef.current = playCallRing()
     })
   }, [currentUser?.uid])
@@ -142,29 +141,8 @@ export function CallProvider({ children }) {
         setIsScreenSharing(true)
         setHasVideo(true)
 
-        // Auto-stop when user clicks "Stop sharing" in browser UI.
-        // Can't call toggleScreenShare() here — stale closure would see isScreenSharing=false.
-        // Instead inline the stop path directly, which we know is correct at this point.
-        screenTrack.onended = async () => {
-          setIsScreenSharing(false)
-          setHasVideo(false)
-          if (localStreamRef.current) {
-            localStreamRef.current.getVideoTracks().forEach(t => { t.stop(); localStreamRef.current.removeTrack(t) })
-            try {
-              const camStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' } })
-              const camTrack = camStream.getVideoTracks()[0]
-              if (camTrack) camTrack.enabled = false
-              localStreamRef.current.addTrack(camTrack)
-              setLocalStream(new MediaStream(localStreamRef.current.getTracks()))
-              Object.values(peersRef.current).forEach(peer => {
-                const sender = peer.getSenders().find(s => s.track?.kind === 'video')
-                if (sender) sender.replaceTrack(camTrack).catch(() => {})
-              })
-            } catch {
-              setLocalStream(new MediaStream(localStreamRef.current.getTracks()))
-            }
-          }
-        }
+        // Auto-stop when user clicks "Stop sharing" in browser UI
+        screenTrack.onended = () => toggleScreenShare()
       } catch (err) {
         if (err.name !== 'NotAllowedError') console.error('Screen share failed:', err)
       }

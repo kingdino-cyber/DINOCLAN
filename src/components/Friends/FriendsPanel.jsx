@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   collection, query, where, onSnapshot, addDoc,
   updateDoc, doc, serverTimestamp, getDocs, getDoc, arrayUnion, arrayRemove,
@@ -331,23 +331,22 @@ export default function FriendsPanel({ onStartDM }) {
     setStatsLoading(true)
     setStatsResult(null)
     setStatsStatus('')
-    try {
-      const snap = await getDocs(query(
-        collection(db, 'users'),
-        where('displayName', '>=', q),
-        where('displayName', '<=', q + ''),
-      ))
-      if (snap.empty) {
-        setStatsStatus('No user found with that username. 🦕')
-      } else {
-        const exact = snap.docs.find(d => d.data().displayName === q)
-        const chosen = exact || snap.docs[0]
-        setStatsResult({ uid: chosen.id, ...chosen.data() })
-      }
-    } catch {
-      setStatsStatus('Search failed. Try again. 🦕')
-    } finally {
-      setStatsLoading(false)
+
+    // Search by displayName prefix (case-sensitive Firestore range query)
+    const snap = await getDocs(query(
+      collection(db, 'users'),
+      where('displayName', '>=', q),
+      where('displayName', '<=', q + ''),
+    ))
+
+    setStatsLoading(false)
+    if (snap.empty) {
+      setStatsStatus('No user found with that username. 🦕')
+    } else {
+      // pick the closest match (exact first, then first result)
+      const exact = snap.docs.find(d => d.data().displayName === q)
+      const chosen = exact || snap.docs[0]
+      setStatsResult({ uid: chosen.id, ...chosen.data() })
     }
   }
 
