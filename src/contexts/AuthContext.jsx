@@ -29,14 +29,18 @@ export function AuthProvider({ children }) {
     const cred = await createUserWithEmailAndPassword(auth, email, password)
     await updateProfile(cred.user, { displayName })
     sendEmailVerification(cred.user, ACTION_CODE_SETTINGS).catch(() => {})
-    setDoc(doc(db, 'users', cred.user.uid), {
-      uid: cred.user.uid,
-      displayName,
-      email,
-      photoURL: null,
-      status: 'online',
-      createdAt: serverTimestamp(),
-    }).catch(err => console.warn('Firestore profile write failed:', err.code, err.message))
+    try {
+      await setDoc(doc(db, 'users', cred.user.uid), {
+        uid: cred.user.uid,
+        displayName,
+        email,
+        photoURL: null,
+        status: 'online',
+        createdAt: serverTimestamp(),
+      })
+    } catch (err) {
+      console.warn('Firestore profile write failed:', err.code, err.message)
+    }
     return cred
   }
 
@@ -61,7 +65,7 @@ export function AuthProvider({ children }) {
 
   async function logout() {
     if (currentUser) {
-      updateDoc(doc(db, 'users', currentUser.uid), { status: 'offline' }).catch(() => {})
+      try { await updateDoc(doc(db, 'users', currentUser.uid), { status: 'offline' }) } catch {}
     }
     return signOut(auth)
   }
@@ -72,10 +76,20 @@ export function AuthProvider({ children }) {
     const userRef = doc(db, 'users', currentUser.uid)
     const goOffline = () => updateDoc(userRef, { status: 'offline' }).catch(() => {})
     const goOnline  = () => updateDoc(userRef, { status: 'online'  }).catch(() => {})
+    let offlineTimer = null
     window.addEventListener('beforeunload', goOffline)
-    const handleVisibility = () => document.hidden ? goOffline() : goOnline()
+    const handleVisibility = () => {
+      if (document.hidden) {
+        // Wait 30s before marking offline — ignores quick tab switches
+        offlineTimer = setTimeout(goOffline, 30000)
+      } else {
+        clearTimeout(offlineTimer)
+        goOnline()
+      }
+    }
     document.addEventListener('visibilitychange', handleVisibility)
     return () => {
+      clearTimeout(offlineTimer)
       window.removeEventListener('beforeunload', goOffline)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
