@@ -316,10 +316,19 @@ export default function FriendsPanel({ onStartDM }) {
       await updateDoc(doc(db, 'users', currentUser.uid), {
         friends: arrayRemove(friendUid),
       })
-      // Best-effort: also remove us from their list
+      // Also remove us from their list
       updateDoc(doc(db, 'users', friendUid), {
         friends: arrayRemove(currentUser.uid),
       }).catch(() => {})
+      // Mark the accepted friendRequest as 'removed' so the self-healing
+      // effect doesn't immediately re-add the friend when userData updates
+      const [req1, req2] = await Promise.all([
+        getDocs(query(collection(db, 'friendRequests'),
+          where('fromUid', '==', currentUser.uid), where('toUid', '==', friendUid), where('status', '==', 'accepted'))),
+        getDocs(query(collection(db, 'friendRequests'),
+          where('fromUid', '==', friendUid), where('toUid', '==', currentUser.uid), where('status', '==', 'accepted'))),
+      ])
+      ;[...req1.docs, ...req2.docs].forEach(d => updateDoc(d.ref, { status: 'removed' }).catch(() => {}))
     } catch (err) {
       console.error('Remove friend failed:', err)
     }
