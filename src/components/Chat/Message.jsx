@@ -7,6 +7,26 @@ import { useProfile } from '../../contexts/ProfileContext'
 import { isAdmin, SERVER_RANK_TAGS, GLOBAL_RANK_TAGS } from '../../utils/admin'
 import Avatar from './Avatar'
 
+function parseMentions(content, currentUid) {
+  if (!content || !content.includes('@[')) return content
+  const parts = []
+  let last = 0
+  const re = /@\[([^:\]]+):([^\]]+)\]/g
+  let m
+  while ((m = re.exec(content)) !== null) {
+    if (m.index > last) parts.push(content.slice(last, m.index))
+    const isMe = m[1] === currentUid
+    parts.push(
+      <span key={m.index} className={`mention-chip${isMe ? ' mention-me' : ''}`}>
+        @{m[2]}
+      </span>
+    )
+    last = m.index + m[0].length
+  }
+  if (last < content.length) parts.push(content.slice(last))
+  return parts.length ? parts : content
+}
+
 function formatTimestamp(ts, short = false) {
   if (!ts) return ''
   const date = ts.toDate ? ts.toDate() : new Date(ts)
@@ -62,6 +82,8 @@ function BotMessage({ message }) {
 
 /* ── File attachment card ── */
 function FileAttachment({ url, name, size, type }) {
+  const [downloading, setDownloading] = useState(false)
+
   function formatSize(bytes) {
     if (!bytes) return ''
     if (bytes < 1024)           return `${bytes} B`
@@ -69,33 +91,73 @@ function FileAttachment({ url, name, size, type }) {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
-  function getIcon(t) {
+  function getIcon(t, n) {
+    const ext = (n || '').split('.').pop().toLowerCase()
+    if (ext === 'jar')  return '☕'
+    if (ext === 'zip' || ext === 'rar' || ext === '7z') return '🗜️'
+    if (ext === 'pdf')  return '📄'
+    if (ext === 'doc' || ext === 'docx') return '📝'
+    if (ext === 'xls' || ext === 'xlsx') return '📊'
+    if (ext === 'ppt' || ext === 'pptx') return '📑'
+    if (ext === 'mp4' || ext === 'mov' || ext === 'avi') return '🎬'
+    if (ext === 'mp3' || ext === 'wav' || ext === 'ogg') return '🎵'
+    if (ext === 'txt' || ext === 'md')  return '📃'
     if (!t) return '📎'
-    if (t.includes('pdf'))                          return '📄'
+    if (t.includes('pdf'))   return '📄'
     if (t.includes('word') || t.includes('document')) return '📝'
-    if (t.includes('sheet') || t.includes('excel')) return '📊'
+    if (t.includes('sheet') || t.includes('excel'))   return '📊'
     if (t.includes('presentation') || t.includes('powerpoint')) return '📑'
-    if (t.includes('zip') || t.includes('archive') || t.includes('rar')) return '🗜️'
-    if (t.includes('video'))                        return '🎬'
-    if (t.includes('audio'))                        return '🎵'
-    if (t.includes('text'))                         return '📃'
+    if (t.includes('zip') || t.includes('archive') || t.includes('java')) return '🗜️'
+    if (t.includes('video'))  return '🎬'
+    if (t.includes('audio'))  return '🎵'
+    if (t.includes('text'))   return '📃'
     return '📎'
   }
 
+  async function handleDownload(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!url) return
+    // data: URLs work fine with <a download> — just trigger it directly
+    if (url.startsWith('data:')) {
+      const a = document.createElement('a')
+      a.href = url
+      a.download = name || 'file'
+      a.click()
+      return
+    }
+    // Cross-origin Storage URLs: fetch as blob so the browser saves instead of navigating
+    setDownloading(true)
+    try {
+      const res = await fetch(url)
+      const blob = await res.blob()
+      const objUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = objUrl
+      a.download = name || 'file'
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(objUrl), 10000)
+    } catch {
+      // Fallback: open in new tab
+      window.open(url, '_blank')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   return (
-    <a
-      href={url}
-      download={name || 'file'}
+    <div
       className="file-attachment"
-      onClick={e => e.stopPropagation()}
+      onClick={handleDownload}
+      style={{ cursor: downloading ? 'wait' : 'pointer' }}
     >
-      <span className="file-attach-icon">{getIcon(type)}</span>
+      <span className="file-attach-icon">{getIcon(type, name)}</span>
       <div className="file-attach-info">
         <span className="file-attach-name">{name || 'File'}</span>
         {size > 0 && <span className="file-attach-size">{formatSize(size)}</span>}
       </div>
-      <span className="file-attach-dl" title="Download">⬇️</span>
-    </a>
+      <span className="file-attach-dl" title="Download">{downloading ? '⏳' : '⬇️'}</span>
+    </div>
   )
 }
 
@@ -444,7 +506,7 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
         <>
           {message.content && !editing && (
             <p className="msg-content">
-              {message.content}
+              {parseMentions(message.content, currentUser?.uid)}
               {message.edited && <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 4 }}>(edited)</span>}
             </p>
           )}

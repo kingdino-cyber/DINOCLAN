@@ -4,6 +4,12 @@ import { updateProfile } from 'firebase/auth'
 import { db, auth } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 
+async function saveRayMode(uid, enabled) {
+  await updateDoc(doc(db, 'users', uid), { rayMode: enabled })
+  if (enabled) document.body.setAttribute('data-ray', 'true')
+  else         document.body.removeAttribute('data-ray')
+}
+
 const PRESET_AVATARS = [
   { id: 'dino1',  emoji: '🦕', bg: '#5a9e44' },
   { id: 'dino2',  emoji: '🦖', bg: '#c0392b' },
@@ -47,6 +53,8 @@ function compressImage(file, maxSize = 128) {
 export default function Settings({ onClose }) {
   const { currentUser, changePassword, resendVerificationEmail } = useAuth()
   const [tab, setTab] = useState('profile')
+  const [rayMode, setRayMode] = useState(false)
+  const [rayToggling, setRayToggling] = useState(false)
 
   // Profile state
   const [displayName,    setDisplayName]    = useState(currentUser?.displayName || '')
@@ -68,13 +76,24 @@ export default function Settings({ onClose }) {
   const [pwError,     setPwError]     = useState('')
   const [verifySent,  setVerifySent]  = useState(false)
 
-  // Load existing About Me on mount
+  // Load existing About Me + Ray Mode on mount
   useEffect(() => {
     if (!currentUser?.uid) return
     getDoc(doc(db, 'users', currentUser.uid)).then(snap => {
-      if (snap.exists()) setAboutMe(snap.data().aboutMe || '')
+      if (snap.exists()) {
+        setAboutMe(snap.data().aboutMe || '')
+        setRayMode(!!snap.data().rayMode)
+      }
     })
   }, [currentUser?.uid])
+
+  async function handleRayToggle() {
+    setRayToggling(true)
+    const next = !rayMode
+    setRayMode(next)
+    try { await saveRayMode(currentUser.uid, next) } catch (_) { setRayMode(!next) }
+    setRayToggling(false)
+  }
 
   // ── Profile handlers ────────────────────────────────────────────────────────
   async function handleFileChange(e) {
@@ -161,9 +180,10 @@ export default function Settings({ onClose }) {
         {/* ── Sidebar ── */}
         <div className="settings-sidebar">
           <div className="settings-category">User Settings</div>
-          <div className={`settings-tab ${tab === 'profile'  ? 'active' : ''}`} onClick={() => setTab('profile')}>👤 My Account</div>
-          <div className={`settings-tab ${tab === 'status'   ? 'active' : ''}`} onClick={() => setTab('status')}>🟢 Status</div>
-          <div className={`settings-tab ${tab === 'security' ? 'active' : ''}`} onClick={() => setTab('security')}>🔒 Security</div>
+          <div className={`settings-tab ${tab === 'profile'    ? 'active' : ''}`} onClick={() => setTab('profile')}>👤 My Account</div>
+          <div className={`settings-tab ${tab === 'status'     ? 'active' : ''}`} onClick={() => setTab('status')}>🟢 Status</div>
+          <div className={`settings-tab ${tab === 'security'   ? 'active' : ''}`} onClick={() => setTab('security')}>🔒 Security</div>
+          <div className={`settings-tab ${tab === 'appearance' ? 'active' : ''}`} onClick={() => setTab('appearance')}>🎨 Appearance</div>
           <div className="settings-divider" />
           <div className="settings-tab danger" onClick={onClose}>✕ Close</div>
         </div>
@@ -304,6 +324,92 @@ export default function Settings({ onClose }) {
                   {pwSaving ? 'Changing…' : 'Change Password'}
                 </button>
               </form>
+            </>
+          )}
+
+          {/* Appearance tab */}
+          {tab === 'appearance' && (
+            <>
+              <h2>Appearance</h2>
+
+              {/* Ray's Improvements toggle */}
+              <div style={{
+                background: 'var(--bg-tertiary)',
+                border: '1px solid var(--bg-modifier)',
+                borderRadius: 10,
+                padding: '18px 20px',
+                marginBottom: 24,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--header-primary)', marginBottom: 6 }}>
+                      ✨ Ray's Improvements
+                    </div>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55 }}>
+                      Applies a suite of accessibility and readability enhancements:
+                    </div>
+                    <ul style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7, margin: '8px 0 0 16px', padding: 0 }}>
+                      <li>Higher text contrast across the entire app</li>
+                      <li>Message separation with subtle row borders</li>
+                      <li>Clearer active-channel indicators in the sidebar</li>
+                      <li>Dimmed background decorations (dinos &amp; foliage)</li>
+                      <li>Softer role badges (ADMIN / MOD)</li>
+                      <li>Sponsor section hidden to reduce UI clutter</li>
+                      <li>More padding in the message input bar</li>
+                      <li>Balanced Discover grid layout</li>
+                      <li>Better visible timestamps and member counts</li>
+                    </ul>
+                  </div>
+
+                  {/* Toggle switch */}
+                  <button
+                    onClick={handleRayToggle}
+                    disabled={rayToggling}
+                    style={{
+                      flexShrink: 0,
+                      width: 52,
+                      height: 28,
+                      borderRadius: 14,
+                      border: 'none',
+                      background: rayMode ? 'var(--accent)' : 'var(--bg-modifier)',
+                      cursor: rayToggling ? 'wait' : 'pointer',
+                      position: 'relative',
+                      transition: 'background .2s',
+                    }}
+                    title={rayMode ? 'Disable Ray\'s Improvements' : 'Enable Ray\'s Improvements'}
+                  >
+                    <span style={{
+                      position: 'absolute',
+                      top: 3, left: rayMode ? 27 : 3,
+                      width: 22, height: 22,
+                      borderRadius: '50%',
+                      background: '#fff',
+                      boxShadow: '0 1px 4px rgba(0,0,0,.4)',
+                      transition: 'left .2s',
+                      display: 'block',
+                    }} />
+                  </button>
+                </div>
+
+                {rayMode && (
+                  <div style={{
+                    marginTop: 14,
+                    padding: '8px 12px',
+                    background: 'rgba(88,101,242,.12)',
+                    border: '1px solid rgba(88,101,242,.3)',
+                    borderRadius: 6,
+                    fontSize: 12,
+                    color: 'var(--accent)',
+                    fontWeight: 600,
+                  }}>
+                    ✓ Ray's Improvements are active — the UI has been updated.
+                  </div>
+                )}
+              </div>
+
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                This setting is saved to your account and applies only to you.
+              </div>
             </>
           )}
 

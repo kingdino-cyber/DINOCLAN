@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import {
   collection, query, where, onSnapshot, addDoc,
   updateDoc, doc, serverTimestamp, getDocs, getDoc, arrayUnion, arrayRemove,
-  orderBy, limit,
 } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -250,13 +249,11 @@ export default function FriendsPanel({ onStartDM }) {
     // Activity tracker — post system message to first text channel
     try {
       const channelsSnap = await getDocs(
-        query(
-          collection(db, 'servers', inv.serverId, 'channels'),
-          orderBy('position', 'asc'),
-          limit(10)
-        )
+        collection(db, 'servers', inv.serverId, 'channels')
       )
-      const firstText = channelsSnap.docs.find(d => (d.data().type || 'text') === 'text')
+      const firstText = channelsSnap.docs
+        .sort((a, b) => (a.data().position ?? 999) - (b.data().position ?? 999))
+        .find(d => (d.data().type || 'text') === 'text')
       if (firstText) {
         const joinerName = currentUser.displayName || currentUser.email || 'Someone'
         await addDoc(

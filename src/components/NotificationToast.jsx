@@ -64,9 +64,11 @@ export default function NotificationToast({
           return
         }
 
-        const isServer = data.type === 'server'
+        const isServer  = data.type === 'server'
+        const isMention = data.type === 'mention'
+        const isChannel = isServer || isMention
 
-        if (isServer) {
+        if (isChannel) {
           // Skip if already viewing that exact channel
           if (
             data.serverId  === activeServerRef.current &&
@@ -97,10 +99,10 @@ export default function NotificationToast({
         // Desktop notification — only when tab is not visible
         if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
           try {
-            const title = isServer
-              ? `🦕 ${data.fromName} in #${data.channelName}`
+            const title = isChannel
+              ? (isMention ? `🔔 ${data.fromName} mentioned you in #${data.channelName}` : `🦕 ${data.fromName} in #${data.channelName}`)
               : `🦕 ${data.fromName}`
-            const body = data.preview || (isServer ? '💬 New message' : '📷 Image')
+            const body = data.preview || (isChannel ? '💬 New message' : '📷 Image')
             const n = new Notification(title, {
               body,
               icon: '/favicon.svg',
@@ -109,7 +111,7 @@ export default function NotificationToast({
             })
             n.onclick = () => {
               window.focus()
-              if (isServer) {
+              if (isChannel) {
                 onNavigateRef.current?.(data.serverId, data.channelId)
               } else {
                 onStartDMRef.current?.(data.fromUid)
@@ -133,7 +135,7 @@ export default function NotificationToast({
   }
 
   function handleClick(toast) {
-    if (toast.type === 'server') {
+    if (toast.type === 'server' || toast.type === 'mention') {
       onNavigateToServer?.(toast.serverId, toast.channelId)
     } else {
       onStartDM?.(toast.fromUid)
@@ -176,14 +178,17 @@ export default function NotificationToast({
           }}
         >
           {/* Icon */}
-          <div style={{ fontSize: 30, lineHeight: 1, flexShrink: 0, marginTop: 1 }}>🦕</div>
+          <div style={{ fontSize: 30, lineHeight: 1, flexShrink: 0, marginTop: 1 }}>
+            {toast.type === 'mention' ? '🔔' : '🦕'}
+          </div>
 
           {/* Text */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 800, color: 'var(--header-primary)', fontSize: 14, marginBottom: 2 }}>
               {toast.fromName}
+              {toast.type === 'mention' && <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 13 }}> mentioned you</span>}
             </div>
-            {toast.type === 'server' && (
+            {(toast.type === 'server' || toast.type === 'mention') && (
               <div style={{ fontSize: 11, color: 'var(--accent)', marginBottom: 3, fontWeight: 600 }}>
                 #{toast.channelName} · {toast.serverName}
               </div>

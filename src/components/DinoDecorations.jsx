@@ -40,7 +40,7 @@ const DINOS = [
 
 export default function DinoDecorations() {
   return (
-    <div style={{
+    <div className="dino-decorations" style={{
       position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0, overflow: 'hidden',
     }}>
       {DINOS.map((d, i) => (

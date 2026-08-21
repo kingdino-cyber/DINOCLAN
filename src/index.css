@@ -856,6 +856,7 @@ html, body, #root {
 .message-input-wrapper {
   padding: 0 16px 24px;
   flex-shrink: 0;
+  position: relative;
 }
 .message-input-box {
   background: #0d1a0d;
@@ -2746,6 +2747,76 @@ html, body, #root {
 .call-ctrl-btn-sm.end-btn:hover { background: var(--danger-hover); }
 
 /* ═══════════════════════════════════════════════════════════════
+   @MENTION — dropdown + inline chip
+═══════════════════════════════════════════════════════════════ */
+
+.mention-dropdown {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--bg-modifier);
+  border-radius: 8px;
+  box-shadow: 0 -4px 16px rgba(0,0,0,.35);
+  overflow: hidden;
+  z-index: 200;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.mention-dropdown-header {
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--bg-modifier);
+}
+.mention-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  color: var(--text-normal);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background .1s;
+}
+.mention-dropdown-item:hover,
+.mention-dropdown-item.active {
+  background: var(--bg-hover);
+  color: var(--header-primary);
+}
+
+/* Inline mention chip inside message content */
+.mention-chip {
+  display: inline;
+  background: rgba(88, 101, 242, .2);
+  color: var(--accent);
+  border-radius: 3px;
+  padding: 0 2px;
+  font-weight: 600;
+  cursor: default;
+}
+.mention-chip:hover {
+  background: var(--accent);
+  color: #fff;
+}
+.mention-chip.mention-me {
+  background: rgba(250, 166, 26, .25);
+  color: #faa61a;
+}
+.mention-chip.mention-me:hover {
+  background: #faa61a;
+  color: #000;
+}
+
+/* ═══════════════════════════════════════════════════════════════
    SYSTEM MESSAGES (activity tracker — join / leave events)
 ═══════════════════════════════════════════════════════════════ */
 
@@ -3007,3 +3078,135 @@ code {
   transition: color 0.1s, background 0.1s;
 }
 .reply-preview-close:hover { color: var(--danger); background: rgba(237,66,69,0.12); }
+
+/* ═══════════════════════════════════════════════════════════════
+   RAY'S IMPROVEMENTS  (toggled per-user via Settings → Appearance)
+   All rules scoped under body[data-ray] so they're completely
+   isolated — nothing changes for users who haven't toggled this.
+═══════════════════════════════════════════════════════════════ */
+
+/* ── 1. Better global text contrast ─────────────────────────── */
+body[data-ray] {
+  --text-normal:     #d4dbd6;
+  --text-muted:      #91a496;
+  --header-primary:  #edf2ee;
+  --header-secondary:#c0cfc4;
+  --channel-default: #a8b9ac;
+}
+
+/* ── 2. Dim distracting background decorations ───────────────── */
+body[data-ray] .dino-decorations { opacity: 0.03 !important; }
+
+/* ── 3. Message row separation ───────────────────────────────── */
+body[data-ray] .message-group {
+  border-bottom: 1px solid rgba(255,255,255,0.035) !important;
+  margin-left: 6px !important;
+  margin-right: 6px !important;
+  border-radius: 4px !important;
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+body[data-ray] .message-group:hover {
+  background: rgba(255,255,255,0.04) !important;
+}
+
+/* ── 4. Timestamps clearly readable ─────────────────────────── */
+body[data-ray] .msg-ts,
+body[data-ray] .msg-ts-inline {
+  color: #91a496 !important;
+  opacity: 1 !important;
+}
+
+/* ── 5. Active channel stands out strongly ───────────────────── */
+body[data-ray] .channel-item.active {
+  background: rgba(88,101,242,0.22) !important;
+  border-left: 3px solid #5865f2 !important;
+  padding-left: 13px !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+}
+body[data-ray] .channel-item:not(.active) {
+  color: #a8b9ac !important;
+  opacity: 0.8;
+}
+body[data-ray] .channel-item:not(.active):hover {
+  opacity: 1;
+  color: var(--header-primary) !important;
+}
+
+/* ── 6. Category headers more distinct ───────────────────────── */
+body[data-ray] .channel-category span,
+body[data-ray] .category-header {
+  color: #c0cfc4 !important;
+  font-size: 12px !important;
+  letter-spacing: .06em !important;
+}
+
+/* ── 7. Softer role badges ───────────────────────────────────── */
+body[data-ray] .msg-header span[style*="background"] {
+  opacity: 0.65 !important;
+  font-size: 8px !important;
+}
+body[data-ray] .admin-badge {
+  color: rgba(250,166,26,0.7) !important;
+}
+
+/* ── 8. Hide sponsor section (intrusive placement) ───────────── */
+body[data-ray] .sponsor-banner { display: none !important; }
+
+/* ── 9. More breathing room in the message input ─────────────── */
+body[data-ray] .message-input-box {
+  padding: 4px 14px !important;
+}
+body[data-ray] .message-input-box textarea {
+  padding: 10px 0 !important;
+  min-height: 24px;
+}
+
+/* ── 10. Discover grid — even columns, consistent card heights ── */
+body[data-ray] .discover-grid {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)) !important;
+}
+body[data-ray] .discover-card {
+  height: 180px !important;
+  overflow: hidden !important;
+}
+body[data-ray] .discover-card-banner {
+  height: 110px !important;
+}
+
+/* ── 11. Member count & secondary text visible ───────────────── */
+body[data-ray] .discover-card-members,
+body[data-ray] .discover-card-info {
+  color: #91a496 !important;
+}
+body[data-ray] .discover-card-name {
+  color: #edf2ee !important;
+}
+
+/* ── 12. Discover tag badge anchored properly ────────────────── */
+body[data-ray] .discover-card-tag {
+  display: inline-block !important;
+  background: rgba(0,0,0,0.45) !important;
+  border-radius: 4px !important;
+  padding: 2px 6px !important;
+  font-size: 10px !important;
+}
+
+/* ── 13. Gear icon uniform padding ──────────────────────────── */
+body[data-ray] .discover-card-gear-btn {
+  bottom: 8px !important;
+  right: 8px !important;
+}
+
+/* ── 14. Member sidebar secondary text ──────────────────────── */
+body[data-ray] .member-item .member-name {
+  color: #c0cfc4 !important;
+}
+
+/* ── 15. Sponsor button contrast fix (if visible elsewhere) ──── */
+body[data-ray] .sponsor-btn {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border: none !important;
+}

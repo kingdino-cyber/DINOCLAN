@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import {
-  collection, addDoc, updateDoc, doc, onSnapshot,
+  collection, addDoc, updateDoc, doc, onSnapshot, getDoc,
   serverTimestamp, query, where, getDocs, arrayUnion, arrayRemove,
 } from 'firebase/firestore'
 import { db } from '../firebase'
@@ -25,6 +25,7 @@ export function CallProvider({ children }) {
   const [isMuted, setIsMuted]               = useState(false)
   const [hasVideo, setHasVideo]             = useState(false)
   const [isScreenSharing, setIsScreenSharing] = useState(false)
+  const isScreenSharingRef = useRef(false)
   const [localStream, setLocalStream]       = useState(null)
   const [callError, setCallError]           = useState('')
 
@@ -117,6 +118,7 @@ export function CallProvider({ children }) {
           setLocalStream(new MediaStream(localStreamRef.current.getTracks()))
         }
       }
+      isScreenSharingRef.current = false
       setIsScreenSharing(false)
       setHasVideo(false)
     } else {
@@ -138,11 +140,13 @@ export function CallProvider({ children }) {
           if (sender) sender.replaceTrack(screenTrack).catch(() => {})
         })
 
+        isScreenSharingRef.current = true
         setIsScreenSharing(true)
         setHasVideo(true)
 
         // Auto-stop when user clicks "Stop sharing" in browser UI
-        screenTrack.onended = () => toggleScreenShare()
+        // Use ref so the callback always sees the current sharing state
+        screenTrack.onended = () => { if (isScreenSharingRef.current) toggleScreenShare() }
       } catch (err) {
         if (err.name !== 'NotAllowedError') console.error('Screen share failed:', err)
       }
@@ -403,18 +407,14 @@ export function CallProvider({ children }) {
   async function endCall() {
     const callId = activeCallIdRef.current
     if (!callId) return
-    const call = activeCall
     try {
-      if (call?.type === 'server') {
-        // Remove self from participants; end call only if nobody left
+      const callSnap = await getDoc(doc(db, 'calls', callId))
+      if (callSnap.exists() && callSnap.data().type === 'server') {
         await updateDoc(doc(db, 'calls', callId), {
           participants: arrayRemove({ uid: currentUser.uid, name: currentUser.displayName || currentUser.email }),
         })
-        const snap = await getDocs(query(collection(db, 'calls'), where('__name__', '==', callId)))
-        // The above won't work — just check if we need to end the whole call
-        // We'll rely on the watchCallDoc to see when no participants remain
-        // For now just check the current participants list
-        const remaining = (call?.participants || []).filter(p => p.uid !== currentUser.uid)
+        const fresh = await getDoc(doc(db, 'calls', callId))
+        const remaining = fresh.exists() ? (fresh.data().participants || []) : []
         if (remaining.length === 0) {
           await updateDoc(doc(db, 'calls', callId), { status: 'ended' })
         }

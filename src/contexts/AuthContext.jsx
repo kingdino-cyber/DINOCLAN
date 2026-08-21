@@ -95,9 +95,18 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (!currentUser?.uid) { setMyProfile(null); return }
     const unsub = onSnapshot(doc(db, 'users', currentUser.uid), snap => {
-      if (snap.exists()) setMyProfile({ uid: snap.id, ...snap.data() })
+      if (snap.exists()) {
+        const data = { uid: snap.id, ...snap.data() }
+        setMyProfile(data)
+        // Apply Ray's improvements mode as a body attribute
+        if (data.rayMode) {
+          document.body.setAttribute('data-ray', 'true')
+        } else {
+          document.body.removeAttribute('data-ray')
+        }
+      }
     })
-    return unsub
+    return () => { unsub(); document.body.removeAttribute('data-ray') }
   }, [currentUser?.uid])
 
   return (

@@ -102,6 +102,7 @@ function VoiceChannelItem({ ch, isActive, onClick, canAdmin, onDelete }) {
 /* ── Customise channel popup (swear jar toggle + header assignment) ──────────── */
 function CustomiseModal({ ch, serverId, isGroup, onClose }) {
   const [swearJarEnabled, setSwearJarEnabled] = useState(!!ch.swearJarEnabled)
+  const [hiRayJarEnabled, setHiRayJarEnabled] = useState(!!ch.hiRayJarEnabled)
   const [categoryId, setCategoryId] = useState(ch.categoryId || '')
   const [headers, setHeaders] = useState([])
   const [saving, setSaving] = useState(false)
@@ -121,6 +122,7 @@ function CustomiseModal({ ch, serverId, isGroup, onClose }) {
     try {
       await updateDoc(doc(db, 'servers', serverId, 'channels', ch.id), {
         swearJarEnabled,
+        hiRayJarEnabled,
         categoryId: categoryId || null,
       })
       onClose()
@@ -179,6 +181,33 @@ function CustomiseModal({ ch, serverId, isGroup, onClose }) {
           >
             <div style={{
               position: 'absolute', top: 3, left: swearJarEnabled ? 23 : 3,
+              width: 18, height: 18, borderRadius: '50%',
+              background: '#fff', transition: 'left 0.2s',
+            }} />
+          </div>
+        </div>
+
+        {/* Hi Ray Jar toggle */}
+        <div style={{
+          background: 'var(--bg-tertiary)', borderRadius: 10, padding: '14px 16px',
+          marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14,
+        }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, color: 'var(--header-primary)', marginBottom: 2 }}>👋 Hi Ray Jar</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              Counts how many times the team says "hi ray" — shows a live counter above the chat input.
+            </div>
+          </div>
+          <div
+            onClick={() => setHiRayJarEnabled(v => !v)}
+            style={{
+              width: 44, height: 24, borderRadius: 12, flexShrink: 0, cursor: 'pointer',
+              background: hiRayJarEnabled ? 'var(--accent)' : 'var(--bg-modifier)',
+              position: 'relative', transition: 'background 0.2s',
+            }}
+          >
+            <div style={{
+              position: 'absolute', top: 3, left: hiRayJarEnabled ? 23 : 3,
               width: 18, height: 18, borderRadius: '50%',
               background: '#fff', transition: 'left 0.2s',
             }} />

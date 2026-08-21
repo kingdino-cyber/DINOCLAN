@@ -89,6 +89,8 @@ export default function MessageInput({ serverId, channelId, channelName, server,
   const [emojiTab,        setEmojiTab]        = useState(0)
   const [typingNames,     setTypingNames]     = useState([])
   const [swearJarEnabled, setSwearJarEnabled] = useState(false)
+  const [hiRayJarEnabled, setHiRayJarEnabled] = useState(false)
+  const [hiRayCount,      setHiRayCount]      = useState(0)
 
   // GIF picker state
   const [showGif,    setShowGif]    = useState(false)
@@ -106,10 +108,16 @@ export default function MessageInput({ serverId, channelId, channelName, server,
   const [pollMode,        setPollMode]        = useState('single')   // 'single' | 'multiple'
   const [pollMaxSelect,   setPollMaxSelect]   = useState(2)
 
+  // @mention state
+  const [mentionQuery, setMentionQuery] = useState(null)  // null = closed
+  const [mentionUsers, setMentionUsers] = useState([])
+  const [mentionIndex, setMentionIndex] = useState(0)
+
   const textareaRef      = useRef(null)
   const fileRef          = useRef(null)
   const emojiRef         = useRef(null)
   const typingTimeoutRef = useRef(null)
+  const memberCacheRef   = useRef(null)
 
   // Load current user's profile
   useEffect(() => {
@@ -124,9 +132,11 @@ export default function MessageInput({ serverId, channelId, channelName, server,
   useEffect(() => {
     if (!serverId || !channelId || !currentUser?.uid) return
     const unsub = onSnapshot(doc(db, 'servers', serverId, 'channels', channelId), snap => {
-      if (!snap.exists()) { setTypingNames([]); setSwearJarEnabled(false); return }
+      if (!snap.exists()) { setTypingNames([]); setSwearJarEnabled(false); setHiRayJarEnabled(false); setHiRayCount(0); return }
       const data = snap.data()
       setSwearJarEnabled(!!data?.swearJarEnabled)
+      setHiRayJarEnabled(!!data?.hiRayJarEnabled)
+      setHiRayCount(data?.hiRayCount || 0)
       const typing = data?.typing || {}
       const now = Date.now()
       const active = Object.entries(typing)
@@ -271,6 +281,41 @@ export default function MessageInput({ serverId, channelId, channelName, server,
     }).catch(() => {})
   }
 
+  // Invalidate member cache when switching servers
+  useEffect(() => { memberCacheRef.current = null }, [serverId])
+
+  // Lazy-load + cache server members for @mention
+  async function fetchMentionMembers() {
+    if (memberCacheRef.current) return memberCacheRef.current
+    const uids = server?.members || []
+    const results = []
+    await Promise.all(uids.map(async uid => {
+      try {
+        const snap = await getDoc(doc(db, 'users', uid))
+        if (snap.exists()) results.push({ uid, displayName: snap.data().displayName || uid })
+      } catch (_) {}
+    }))
+    memberCacheRef.current = results
+    return results
+  }
+
+  function handleMentionSelect(user) {
+    const el = textareaRef.current
+    if (!el) return
+    const cursor = el.selectionStart
+    const newBefore = text.slice(0, cursor).replace(/@(\w*)$/, `@[${user.uid}:${user.displayName}] `)
+    const after = text.slice(cursor)
+    const next = newBefore + after
+    setText(next)
+    setMentionQuery(null)
+    setMentionUsers([])
+    setTimeout(() => {
+      el.focus()
+      el.setSelectionRange(newBefore.length, newBefore.length)
+      autoResize()
+    }, 0)
+  }
+
   // ── Permission check — AFTER all hooks ───────────────────────────────────
   // Per-channel viewType takes priority; falls back to the legacy server-level
   // type for channels created before this field existed.
@@ -366,6 +411,15 @@ export default function MessageInput({ serverId, channelId, channelName, server,
       collection(db, 'servers', serverId, 'channels', channelId, 'messages'),
       { type: 'bot', botName, content, createdAt: serverTimestamp() }
     )
+  }
+
+  // ── Hi Ray jar: detect "hi ray" and increment collective count ────────────
+  async function handleHiRayJar(messageContent) {
+    if (!hiRayJarEnabled || !messageContent) return
+    if (!/hi[\s,]*ray/i.test(messageContent)) return
+    await updateDoc(doc(db, 'servers', serverId, 'channels', channelId), {
+      hiRayCount: increment(1),
+    })
   }
 
   // ── Swear jar: record swear and post bot message ──────────────────────────
@@ -519,6 +573,8 @@ export default function MessageInput({ serverId, channelId, channelName, server,
 
       // Swear jar detection (fire-and-forget)
       if (content && swearJarEnabled) handleSwearJar(content).catch(() => {})
+      // Hi Ray jar detection (fire-and-forget)
+      if (content && hiRayJarEnabled) handleHiRayJar(content).catch(() => {})
 
       // Notify other members (fire-and-forget)
       const preview = content
@@ -527,6 +583,31 @@ export default function MessageInput({ serverId, channelId, channelName, server,
           ? '📷 Image'
           : `📎 ${fileToSend?.name}`
       notifyMembers(preview)
+
+      // Notify mentioned users
+      if (content) {
+        const mentionRe = /@\[([^:\]]+):([^\]]+)\]/g
+        let mMatch
+        const notified = new Set()
+        while ((mMatch = mentionRe.exec(content)) !== null) {
+          const mUid = mMatch[1]
+          if (mUid !== currentUser.uid && !notified.has(mUid)) {
+            notified.add(mUid)
+            addDoc(collection(db, 'users', mUid, 'notifications'), {
+              type:        'mention',
+              fromUid:     currentUser.uid,
+              fromName:    senderName,
+              serverId,
+              channelId,
+              serverName:  server?.name   || 'Server',
+              channelName: channelName    || 'channel',
+              preview:     content.replace(/@\[([^:\]]+):([^\]]+)\]/g, '@$2').slice(0, 80),
+              createdAt:   serverTimestamp(),
+              read:        false,
+            }).catch(() => {})
+          }
+        }
+      }
 
     } catch (err) {
       console.error('Failed to send message:', err.code, err.message)
@@ -582,6 +663,12 @@ export default function MessageInput({ serverId, channelId, channelName, server,
   }
 
   function handleKey(e) {
+    if (mentionQuery !== null && mentionUsers.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIndex(i => Math.min(i + 1, mentionUsers.length - 1)); return }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); setMentionIndex(i => Math.max(i - 1, 0)); return }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); handleMentionSelect(mentionUsers[mentionIndex]); return }
+      if (e.key === 'Escape')    { setMentionQuery(null); setMentionUsers([]); return }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       sendMessage()
@@ -606,6 +693,31 @@ export default function MessageInput({ serverId, channelId, channelName, server,
           fontSize: 12, color: '#ed4245', flexShrink: 0,
         }}>
           ⚠️ {sendError}
+        </div>
+      )}
+
+      {/* ── Hi Ray Jar counter ── */}
+      {hiRayJarEnabled && (
+        <div style={{
+          margin: '0 16px 6px', borderRadius: 7,
+          background: 'var(--bg-tertiary)',
+          border: '1px solid var(--bg-modifier)',
+          padding: '6px 11px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ fontSize: 14 }}>👋</span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 11, color: 'var(--header-primary)' }}>Hi Ray Jar</div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Team "hi ray" count</div>
+            </div>
+          </div>
+          <div style={{
+            fontSize: 19, fontWeight: 900, color: 'var(--accent)',
+            minWidth: 32, textAlign: 'right',
+          }}>
+            {hiRayCount}
+          </div>
         </div>
       )}
 
@@ -747,6 +859,24 @@ export default function MessageInput({ serverId, channelId, channelName, server,
           </div>
         )}
 
+        {/* @mention dropdown */}
+        {mentionQuery !== null && mentionUsers.length > 0 && (
+          <div className="mention-dropdown">
+            <div className="mention-dropdown-header">Members — Tab or Enter to select</div>
+            {mentionUsers.map((user, i) => (
+              <button
+                key={user.uid}
+                className={`mention-dropdown-item${i === mentionIndex ? ' active' : ''}`}
+                onMouseDown={e => { e.preventDefault(); handleMentionSelect(user) }}
+                onMouseEnter={() => setMentionIndex(i)}
+              >
+                <span style={{ color: 'var(--accent)', fontWeight: 700 }}>@</span>
+                <span>{user.displayName}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="message-input-box">
           <button
             className="attach-btn"
@@ -763,7 +893,27 @@ export default function MessageInput({ serverId, channelId, channelName, server,
           <textarea
             ref={textareaRef}
             value={text}
-            onChange={e => { setText(e.target.value); autoResize(); broadcastTyping() }}
+            onChange={e => {
+              const val = e.target.value
+              setText(val); autoResize(); broadcastTyping()
+              // Detect @word before cursor
+              const cursor = e.target.selectionStart
+              const match = val.slice(0, cursor).match(/@(\w*)$/)
+              if (match && serverId) {
+                const q = match[1].toLowerCase()
+                setMentionIndex(0)
+                fetchMentionMembers().then(all => {
+                  const filtered = all
+                    .filter(u => u.uid !== currentUser.uid && u.displayName.toLowerCase().includes(q))
+                    .slice(0, 8)
+                  setMentionUsers(filtered)
+                  setMentionQuery(q)
+                })
+              } else {
+                setMentionQuery(null)
+                setMentionUsers([])
+              }
+            }}
             onKeyDown={handleKey}
             onPaste={handlePaste}
             placeholder={`Message #${channelName}`}

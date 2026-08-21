@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   updateDoc, doc, arrayUnion, collection, query, where,
-  getDocs, addDoc, serverTimestamp, orderBy, limit,
+  getDocs, addDoc, serverTimestamp,
 } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -71,13 +71,11 @@ export default function JoinServer({ onClose }) {
       // Activity tracker: post a system message to the first text channel
       try {
         const channelsSnap = await getDocs(
-          query(
-            collection(db, 'servers', serverDoc.id, 'channels'),
-            orderBy('position', 'asc'),
-            limit(10)
-          )
+          collection(db, 'servers', serverDoc.id, 'channels')
         )
-        const firstText = channelsSnap.docs.find(d => (d.data().type || 'text') === 'text')
+        const firstText = channelsSnap.docs
+          .sort((a, b) => (a.data().position ?? 999) - (b.data().position ?? 999))
+          .find(d => (d.data().type || 'text') === 'text')
         if (firstText) {
           const joinerName = currentUser.displayName || currentUser.email || 'Someone'
           const place = serverData.kind === 'group' ? 'group' : 'server'

@@ -131,14 +131,21 @@ export default function DirectMessageView({ otherUid, onClose }) {
 
   // ── Typing indicator — watch other user ──
   useEffect(() => {
+    let clearTimer = null
     const unsub = fsSnap(doc(db, 'dms', dmId), snap => {
+      if (clearTimer) { clearTimeout(clearTimer); clearTimer = null }
       if (!snap.exists()) { setOtherTyping(false); return }
       const ts = snap.data()?.typing?.[otherUid]
       if (!ts) { setOtherTyping(false); return }
       const age = Date.now() - (ts.toDate ? ts.toDate() : new Date(ts)).getTime()
-      setOtherTyping(age < 5000)
+      if (age < 5000) {
+        setOtherTyping(true)
+        clearTimer = setTimeout(() => setOtherTyping(false), 5000 - age)
+      } else {
+        setOtherTyping(false)
+      }
     })
-    return unsub
+    return () => { unsub(); if (clearTimer) clearTimeout(clearTimer) }
   }, [dmId, otherUid])
 
   // ── Typing indicator — write mine ──

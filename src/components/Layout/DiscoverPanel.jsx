@@ -126,7 +126,9 @@ export default function DiscoverPanel({ onSelectServer }) {
         })}
       </div>
 
-      <UserPanel />
+      <div style={{ width: 240, borderTop: '1px solid var(--bg-tertiary)' }}>
+        <UserPanel />
+      </div>
     </div>
   )
 }
