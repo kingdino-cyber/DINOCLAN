@@ -121,9 +121,7 @@ function CustomiseModal({ ch, serverId, isGroup, onClose }) {
     setSaving(true)
     try {
       await updateDoc(doc(db, 'servers', serverId, 'channels', ch.id), {
-        swearJarEnabled,
-        hiRayJarEnabled,
-        categoryId: categoryId || null,
+        swearJarEnabled, hiRayJarEnabled, categoryId: categoryId || null,
       })
       onClose()
     } catch (err) {
@@ -170,7 +168,6 @@ function CustomiseModal({ ch, serverId, isGroup, onClose }) {
               Track swear words per user. Type <code style={{ background: 'var(--bg-secondary)', padding: '0 4px', borderRadius: 3 }}>/leaderboard</code> to see rankings.
             </div>
           </div>
-          {/* Toggle switch */}
           <div
             onClick={() => setSwearJarEnabled(v => !v)}
             style={{
@@ -187,7 +184,6 @@ function CustomiseModal({ ch, serverId, isGroup, onClose }) {
           </div>
         </div>
 
-        {/* Hi Ray Jar toggle */}
         <div style={{
           background: 'var(--bg-tertiary)', borderRadius: 10, padding: '14px 16px',
           marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14,

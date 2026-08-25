@@ -1,101 +1,106 @@
-let audioCtx = null
+// DinoLAN sounds — chess only
 
-async function getCtx() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)()
-  if (audioCtx.state === 'suspended') await audioCtx.resume()
-  return audioCtx
+let ctx = null
+function getCtx() {
+  if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)()
+  if (ctx.state === 'suspended') ctx.resume()
+  return ctx
 }
 
-// Nice double-bing for incoming messages
-export async function playMessageSound() {
+function tone(freq, duration, type = 'sine', vol = 0.25, startTime = 0) {
   try {
-    const ctx = await getCtx()
-    const t = ctx.currentTime
-
-    function note(freq, startOffset, duration, vol = 0.18) {
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.connect(gain); gain.connect(ctx.destination)
-      osc.type = 'sine'
-      osc.frequency.setValueAtTime(freq, t + startOffset)
-      osc.frequency.exponentialRampToValueAtTime(freq * 0.85, t + startOffset + duration)
-      gain.gain.setValueAtTime(0, t + startOffset)
-      gain.gain.linearRampToValueAtTime(vol, t + startOffset + 0.01)
-      gain.gain.exponentialRampToValueAtTime(0.001, t + startOffset + duration)
-      osc.start(t + startOffset)
-      osc.stop(t + startOffset + duration)
-    }
-
-    note(1047, 0, 0.22)       // C6
-    note(1319, 0.12, 0.28)    // E6
-  } catch (e) {}
-}
-
-// Repeating phone-ring for incoming calls — returns a stop() function
-export function playCallRing() {
-  let active = true
-  const stop = () => { active = false }
-
-  getCtx().then(ctx => {
-    if (!active) return
-    function ring() {
-      if (!active) return
-      const t = ctx.currentTime
-      function pulse(freq, start) {
-        const osc = ctx.createOscillator()
-        const gain = ctx.createGain()
-        osc.connect(gain); gain.connect(ctx.destination)
-        osc.type = 'sine'
-        osc.frequency.value = freq
-        gain.gain.setValueAtTime(0, t + start)
-        gain.gain.linearRampToValueAtTime(0.2, t + start + 0.02)
-        gain.gain.setValueAtTime(0.2, t + start + 0.18)
-        gain.gain.exponentialRampToValueAtTime(0.001, t + start + 0.22)
-        osc.start(t + start)
-        osc.stop(t + start + 0.22)
-      }
-      pulse(880, 0)
-      pulse(1100, 0.25)
-      pulse(880, 0.5)
-      setTimeout(ring, 1800)
-    }
-    ring()
-  }).catch(() => {})
-
-  return stop
-}
-
-// Low descending tone when call ends
-export async function playCallEnd() {
-  try {
-    const ctx = await getCtx()
-    const t = ctx.currentTime
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.connect(gain); gain.connect(ctx.destination)
-    osc.type = 'sine'
-    osc.frequency.setValueAtTime(520, t)
-    osc.frequency.exponentialRampToValueAtTime(180, t + 0.5)
-    gain.gain.setValueAtTime(0.2, t)
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.5)
+    const c    = getCtx()
+    const t    = c.currentTime + startTime
+    const osc  = c.createOscillator()
+    const gain = c.createGain()
+    osc.connect(gain)
+    gain.connect(c.destination)
+    osc.type = type
+    osc.frequency.setValueAtTime(freq, t)
+    gain.gain.setValueAtTime(vol, t)
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + duration)
     osc.start(t)
-    osc.stop(t + 0.5)
-  } catch (e) {}
+    osc.stop(t + duration)
+  } catch (_) {}
 }
 
-// Short blip when joining a call
-export async function playCallJoin() {
+function noise(duration, vol = 0.3, startTime = 0) {
   try {
-    const ctx = await getCtx()
-    const t = ctx.currentTime
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.connect(gain); gain.connect(ctx.destination)
-    osc.type = 'sine'
-    osc.frequency.setValueAtTime(600, t)
-    osc.frequency.exponentialRampToValueAtTime(900, t + 0.15)
-    gain.gain.setValueAtTime(0.15, t)
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2)
-    osc.start(t); osc.stop(t + 0.2)
-  } catch (e) {}
+    const c      = getCtx()
+    const t      = c.currentTime + startTime
+    const frames = Math.floor(c.sampleRate * duration)
+    const buf    = c.createBuffer(1, frames, c.sampleRate)
+    const data   = buf.getChannelData(0)
+    for (let i = 0; i < frames; i++)
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (frames * 0.25))
+    const src  = c.createBufferSource()
+    src.buffer = buf
+    const gain = c.createGain()
+    gain.gain.value = vol
+    src.connect(gain)
+    gain.connect(c.destination)
+    src.start(t)
+  } catch (_) {}
+}
+
+// Kept so existing imports don't break — silent no-ops
+export function playMessageSound() {}
+export function playCallRing() { return () => {} }
+export function playCallEnd() {}
+export function playCallJoin() {}
+
+// Chess piece placed
+export function playChessMove() {
+  noise(0.05, 0.35)
+  tone(300, 0.08, 'sine', 0.08, 0.01)
+}
+
+// Chess piece captured
+export function playChessCapture() {
+  noise(0.07, 0.45)
+  tone(220, 0.1, 'sine', 0.1, 0.02)
+}
+
+// Checkmate / puzzle solved
+export function playCheckmate() {
+  const melody = [523, 659, 784, 1047, 784, 1047]
+  melody.forEach((freq, i) => tone(freq, 0.3, 'sine', 0.25, i * 0.1))
+}
+
+// Puzzle fail — descending sad tones
+export function playFail() {
+  tone(440, 0.12, 'sawtooth', 0.2)
+  tone(330, 0.15, 'sawtooth', 0.18, 0.12)
+  tone(220, 0.3,  'sawtooth', 0.15, 0.25)
+}
+
+// UNO — card played
+export function playUnoCard() {
+  noise(0.04, 0.3)
+  tone(500, 0.06, 'sine', 0.1, 0.02)
+}
+
+// UNO — draw card
+export function playUnoDraw() {
+  noise(0.06, 0.25)
+  tone(300, 0.08, 'sine', 0.08, 0.03)
+}
+
+// UNO — skip / reverse / special card
+export function playUnoSpecial() {
+  tone(660, 0.08, 'sine', 0.15)
+  tone(880, 0.1,  'sine', 0.12, 0.07)
+  tone(660, 0.08, 'sine', 0.1,  0.15)
+}
+
+// UNO — wild card chosen
+export function playUnoWild() {
+  const freqs = [523, 659, 784, 988]
+  freqs.forEach((f, i) => tone(f, 0.12, 'sine', 0.18, i * 0.07))
+}
+
+// UNO — someone wins
+export function playUnoWin() {
+  const melody = [523, 659, 784, 1047, 1047, 784, 1047]
+  melody.forEach((f, i) => tone(f, 0.25, 'sine', 0.28, i * 0.09))
 }

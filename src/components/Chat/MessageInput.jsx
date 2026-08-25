@@ -113,6 +113,20 @@ export default function MessageInput({ serverId, channelId, channelName, server,
   const [mentionUsers, setMentionUsers] = useState([])
   const [mentionIndex, setMentionIndex] = useState(0)
 
+  // slash command menu
+  const [slashCmds,  setSlashCmds]  = useState([])
+  const [slashIndex, setSlashIndex] = useState(0)
+  const [showSlash,  setShowSlash]  = useState(false)
+
+  // /chess panel state
+  const [showChess,     setShowChess]     = useState(false)
+  const [chessTitle,    setChessTitle]    = useState('')
+  const [chessFen,      setChessFen]      = useState('')
+  const [chessSolution, setChessSolution] = useState('')
+  const [chessCaption,      setChessCaption]      = useState('')
+  const [chessMovesToSolve, setChessMovesToSolve] = useState('')
+  const chessRef = useRef(null)
+
   const textareaRef      = useRef(null)
   const fileRef          = useRef(null)
   const emojiRef         = useRef(null)
@@ -166,6 +180,16 @@ export default function MessageInput({ serverId, channelId, channelName, server,
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [showGif])
+
+  // Close chess panel on outside click
+  useEffect(() => {
+    if (!showChess) return
+    function handler(e) {
+      if (chessRef.current && !chessRef.current.contains(e.target)) setShowChess(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showChess])
 
   // Load trending GIFs when the picker first opens
   useEffect(() => {
@@ -314,6 +338,121 @@ export default function MessageInput({ serverId, channelId, channelName, server,
       el.setSelectionRange(newBefore.length, newBefore.length)
       autoResize()
     }, 0)
+  }
+
+  // ── Slash command registry ────────────────────────────────────────────────
+  function getAvailableCommands() {
+    if (!serverId) return []
+    const cmds = [
+      { cmd: '/chess puzzle', icon: '♟️', desc: 'Post an interactive chess puzzle' },
+      { cmd: '/chess live',   icon: '⚔️', desc: 'Start a live multiplayer chess game' },
+      { cmd: '/67',           icon: '6️⃣',  desc: 'Flash 67 on everyone\'s screen for 5 seconds' },
+    ]
+    if (serverId)
+      cmds.push({ cmd: '/uno', icon: '🃏', desc: 'Start a game of UNO' })
+    if (swearJarEnabled)
+      cmds.push({ cmd: '/leaderboard', icon: '🫙', desc: 'Show swear jar rankings' })
+    return cmds
+  }
+
+  async function runSlashCommand(cmd) {
+    setShowSlash(false)
+    setText('')
+    if (textareaRef.current) textareaRef.current.style.height = 'auto'
+    if (cmd === '/chess puzzle') {
+      setShowChess(true)
+    } else if (cmd === '/chess live') {
+      await sendChessLive()
+    } else if (cmd === '/67') {
+      await updateDoc(doc(db, 'servers', serverId), {
+        screenEvent: { type: '67', at: serverTimestamp() }
+      })
+      setTimeout(() => {
+        updateDoc(doc(db, 'servers', serverId), { screenEvent: deleteField() }).catch(() => {})
+      }, 6500)
+    } else if (cmd === '/uno') {
+      await sendUnoGame()
+    } else if (cmd === '/leaderboard') {
+      clearTyping()
+      await handleLeaderboard()
+    }
+  }
+
+  async function sendChessLive() {
+    if (sending || !serverId) return
+    setSending(true)
+    try {
+      const senderName = userData?.displayName || currentUser.displayName || currentUser.email
+      const serverRank = getServerRank(server, currentUser.uid)
+      const globalRank = getGlobalRank({ ...userData, email: currentUser.email })
+      await addDoc(
+        collection(db, 'servers', serverId, 'channels', channelId, 'messages'),
+        {
+          type:      'chess-live',
+          content:   '',
+          chessLive: {
+            moves:     [],
+            whiteUid:  null, whiteName: null,
+            blackUid:  null, blackName: null,
+            status:    'waiting',
+            winner:    null,
+          },
+          uid:         currentUser.uid,
+          displayName: senderName,
+          photoURL:    userData?.photoURL    || null,
+          avatarEmoji: userData?.avatarEmoji || null,
+          avatarBg:    userData?.avatarBg    || null,
+          serverRank,
+          globalRank,
+          createdAt:   serverTimestamp(),
+        }
+      )
+    } catch (err) {
+      console.error('Failed to start chess live game:', err)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  async function sendUnoGame() {
+    if (sending || !serverId) return
+    setSending(true)
+    try {
+      const senderName = userData?.displayName || currentUser.displayName || currentUser.email
+      const serverRank = getServerRank(server, currentUser.uid)
+      const globalRank = getGlobalRank({ ...userData, email: currentUser.email })
+      await addDoc(
+        collection(db, 'servers', serverId, 'channels', channelId, 'messages'),
+        {
+          type:    'uno',
+          content: '',
+          unoGame: {
+            players:      [],
+            hands:        {},
+            deck:         [],
+            discard:      [],
+            discardColor: null,
+            currentPlayerIndex: 0,
+            direction:    1,
+            status:       'waiting',
+            winner:       null,
+            drawStack:    0,
+          },
+          uid:         currentUser.uid,
+          displayName: senderName,
+          photoURL:    userData?.photoURL    || null,
+          avatarEmoji: userData?.avatarEmoji || null,
+          avatarBg:    userData?.avatarBg    || null,
+          serverRank,
+          globalRank,
+          createdAt:   serverTimestamp(),
+        }
+      )
+    } catch (err) {
+      console.error('Failed to start UNO game:', err)
+    } finally {
+      setSending(false)
+    }
   }
 
   // ── Permission check — AFTER all hooks ───────────────────────────────────
@@ -622,6 +761,47 @@ export default function MessageInput({ serverId, channelId, channelName, server,
     }
   }
 
+  // ── Send chess puzzle ─────────────────────────────────────────────────────
+  async function sendChessPuzzle() {
+    if (!chessFen.trim() || sending || !serverId) return
+    setSending(true)
+    try {
+      const senderName = userData?.displayName || currentUser.displayName || currentUser.email
+      const serverRank = getServerRank(server, currentUser.uid)
+      const globalRank = getGlobalRank({ ...userData, email: currentUser.email })
+      await addDoc(
+        collection(db, 'servers', serverId, 'channels', channelId, 'messages'),
+        {
+          type:        'chess',
+          content:     chessCaption.trim(),
+          chessPuzzle: {
+            title:        chessTitle.trim(),
+            fen:          chessFen.trim(),
+            solution:     chessSolution.trim(),
+            movesToSolve: chessMovesToSolve ? parseInt(chessMovesToSolve, 10) : null,
+          },
+          uid:         currentUser.uid,
+          displayName: senderName,
+          photoURL:    userData?.photoURL    || null,
+          avatarEmoji: userData?.avatarEmoji || null,
+          avatarBg:    userData?.avatarBg    || null,
+          serverRank,
+          globalRank,
+          createdAt:   serverTimestamp(),
+        }
+      )
+      notifyMembers(chessTitle.trim() || '♟️ Chess Puzzle')
+      setShowChess(false)
+      setChessTitle(''); setChessFen(''); setChessSolution(''); setChessCaption(''); setChessMovesToSolve('')
+    } catch (err) {
+      console.error('Failed to post chess puzzle:', err)
+      setSendError('Failed to post chess puzzle.')
+      setTimeout(() => setSendError(''), 4000)
+    } finally {
+      setSending(false)
+    }
+  }
+
   // ── Send poll ─────────────────────────────────────────────────────────────
   async function sendPoll() {
     const opts = pollOptions.map(o => o.trim()).filter(Boolean)
@@ -663,6 +843,14 @@ export default function MessageInput({ serverId, channelId, channelName, server,
   }
 
   function handleKey(e) {
+    // Slash command menu navigation
+    if (showSlash && slashCmds.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setSlashIndex(i => Math.min(i + 1, slashCmds.length - 1)); return }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); setSlashIndex(i => Math.max(i - 1, 0)); return }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); runSlashCommand(slashCmds[slashIndex].cmd); return }
+      if (e.key === 'Escape')    { setShowSlash(false); return }
+    }
+    // @mention navigation
     if (mentionQuery !== null && mentionUsers.length > 0) {
       if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIndex(i => Math.min(i + 1, mentionUsers.length - 1)); return }
       if (e.key === 'ArrowUp')   { e.preventDefault(); setMentionIndex(i => Math.max(i - 1, 0)); return }
@@ -743,6 +931,82 @@ export default function MessageInput({ serverId, channelId, channelName, server,
             </span>
           </div>
           <button className="reply-preview-close" onClick={onClearReply} title="Cancel reply">✕</button>
+        </div>
+      )}
+
+      {/* ── Chess puzzle panel ── */}
+      {showChess && (
+        <div className="poll-create-panel chess-create-panel" ref={chessRef}>
+          <div className="poll-create-header">
+            <span>♟️ Post Chess Puzzle</span>
+            <button className="poll-create-close" onClick={() => setShowChess(false)}>✕</button>
+          </div>
+
+          <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Title</label>
+          <input
+            className="poll-create-input"
+            placeholder="Puzzle 24: Deliver checkmate"
+            value={chessTitle}
+            onChange={e => setChessTitle(e.target.value)}
+            autoFocus
+            style={{ marginBottom: 10 }}
+          />
+
+          <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>
+            FEN Position
+            <span style={{ fontWeight: 400, marginLeft: 4 }}>
+              — get from chess.com or lichess by right-clicking any position
+            </span>
+          </label>
+          <input
+            className="poll-create-input"
+            placeholder="rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
+            value={chessFen}
+            onChange={e => setChessFen(e.target.value)}
+            style={{ fontFamily: 'monospace', fontSize: 11, marginBottom: 10 }}
+          />
+
+          <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Moves to solve <span style={{ fontWeight: 400 }}>— e.g. 1 for mate in 1 (required for fail detection)</span></label>
+          <input
+            className="poll-create-input"
+            type="number"
+            min="1"
+            max="20"
+            placeholder="e.g. 1"
+            value={chessMovesToSolve}
+            onChange={e => setChessMovesToSolve(e.target.value)}
+            style={{ width: 80, marginBottom: 10 }}
+          />
+
+          <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Solution <span style={{ fontWeight: 400 }}>— shown when someone clicks "Answer"</span></label>
+          <textarea
+            className="poll-create-input"
+            placeholder="1. Nd7 Bxd7 2. Rf3 Be6 3. Rfxh3+ Bxh3 4. Rxh3#"
+            value={chessSolution}
+            onChange={e => setChessSolution(e.target.value)}
+            rows={2}
+            style={{ resize: 'vertical', marginBottom: 10 }}
+          />
+
+          <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Message <span style={{ fontWeight: 400 }}>— optional caption above the board</span></label>
+          <input
+            className="poll-create-input"
+            placeholder="Can anyone solve this one?"
+            value={chessCaption}
+            onChange={e => setChessCaption(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') sendChessPuzzle() }}
+            style={{ marginBottom: 10 }}
+          />
+
+          <div className="poll-create-actions">
+            <button
+              className="poll-send-btn"
+              onClick={sendChessPuzzle}
+              disabled={sending || !chessFen.trim()}
+            >
+              Post Puzzle
+            </button>
+          </div>
         </div>
       )}
 
@@ -859,6 +1123,25 @@ export default function MessageInput({ serverId, channelId, channelName, server,
           </div>
         )}
 
+        {/* Slash command menu */}
+        {showSlash && slashCmds.length > 0 && (
+          <div className="slash-menu">
+            <div className="slash-menu-header">Commands</div>
+            {slashCmds.map((c, i) => (
+              <button
+                key={c.cmd}
+                className={`slash-menu-item${i === slashIndex ? ' active' : ''}`}
+                onMouseDown={e => { e.preventDefault(); runSlashCommand(c.cmd) }}
+                onMouseEnter={() => setSlashIndex(i)}
+              >
+                <span className="slash-menu-icon">{c.icon}</span>
+                <span className="slash-menu-cmd">{c.cmd}</span>
+                <span className="slash-menu-desc">{c.desc}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* @mention dropdown */}
         {mentionQuery !== null && mentionUsers.length > 0 && (
           <div className="mention-dropdown">
@@ -896,6 +1179,19 @@ export default function MessageInput({ serverId, channelId, channelName, server,
             onChange={e => {
               const val = e.target.value
               setText(val); autoResize(); broadcastTyping()
+              // Slash command menu
+              if (val.startsWith('/') && serverId) {
+                const query = val.slice(1).toLowerCase()
+                const all   = getAvailableCommands()
+                const hits  = all.filter(c => c.cmd.slice(1).startsWith(query))
+                if (hits.length > 0) {
+                  setSlashCmds(hits); setSlashIndex(0); setShowSlash(true)
+                } else {
+                  setShowSlash(false)
+                }
+              } else {
+                setShowSlash(false)
+              }
               // Detect @word before cursor
               const cursor = e.target.selectionStart
               const match = val.slice(0, cursor).match(/@(\w*)$/)

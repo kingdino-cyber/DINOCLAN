@@ -17,7 +17,6 @@ export default function CreateChannel({ serverId, defaultType = 'text', isGroup,
     })
   }, [serverId, isGroup])
 
-  // A text channel can only go in a text category, voice in a voice category
   const matchingCategories = categories.filter(c => (c.type || 'text') === type)
 
   useEffect(() => {
@@ -34,8 +33,6 @@ export default function CreateChannel({ serverId, defaultType = 'text', isGroup,
       const ref = await addDoc(collection(db, 'servers', serverId, 'channels'), {
         name: slug,
         type,
-        // Text channels default to editing — hosts/mods can flip individual
-        // channels to viewing-only later. Voice channels ignore this field.
         viewType: 'editing',
         categoryId: categoryId || null,
         createdAt: serverTimestamp(),
@@ -55,7 +52,7 @@ export default function CreateChannel({ serverId, defaultType = 'text', isGroup,
         <h2>Create Channel</h2>
         <p>Choose a type, give it a name, and start talking!</p>
 
-        {/* Channel type — locked to whatever + button was pressed */}
+        {/* Channel type selector */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
           {[
             { id: 'text',  icon: '#',  label: 'Text Channel',  desc: 'Chat with text, images and GIFs' },
@@ -63,12 +60,13 @@ export default function CreateChannel({ serverId, defaultType = 'text', isGroup,
           ].map(opt => (
             <div
               key={opt.id}
+              onClick={() => setType(opt.id)}
               style={{
                 flex: 1, padding: '12px 14px', borderRadius: 8,
                 border: `2px solid ${type === opt.id ? 'var(--accent)' : 'var(--bg-active)'}`,
                 background: type === opt.id ? 'rgba(90,158,68,0.12)' : 'var(--bg-tertiary)',
-                opacity: type === opt.id ? 1 : 0.45,
-                cursor: 'default',
+                opacity: type === opt.id ? 1 : 0.65,
+                cursor: 'pointer',
               }}
             >
               <div style={{ fontSize: 22, marginBottom: 6 }}>{opt.icon}</div>

@@ -2,12 +2,14 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Any authenticated user can read and write their own profile.
+    // bohlehsaurus7 can write anyone's profile (admin).
+    // Any authenticated user can remove themselves from someone else's friends list.
     match /users/{userId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null && (
         request.auth.uid == userId ||
         request.auth.token.email == 'bohlehsaurus7@gmail.com' ||
-        // Allow removing yourself from someone else's friends list (two-sided unfriend)
         (
           request.auth.uid in resource.data.get('friends', []) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['friends']) &&
@@ -20,28 +22,42 @@ service cloud.firestore {
       }
     }
 
+    // Any logged-in user can read any server (needed for invites, discover, join links).
+    // Any logged-in user can create or update a server (create their own, or join/leave one).
+    // Only the owner can delete a server.
     match /servers/{serverId} {
-      allow read: if request.auth != null;
-      allow create, update: if request.auth != null;
-      allow delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
+      allow read:          if request.auth != null;
+      allow create:        if request.auth != null;
+      allow update:        if request.auth != null;
+      allow delete:        if request.auth != null &&
+                              resource.data.ownerId == request.auth.uid;
 
+      // Any logged-in user can read channels (needed to load the channel list after joining).
+      // Only server members or the owner can write channels.
       match /channels/{channelId} {
-        allow read: if request.auth != null;
+        allow read:  if request.auth != null;
         allow write: if request.auth != null && (
           request.auth.uid == get(/databases/$(database)/documents/servers/$(serverId)).data.ownerId ||
-          request.auth.uid in get(/databases/$(database)/documents/servers/$(serverId)).data.members
+          request.auth.uid in get(/databases/$(database)/documents/servers/$(serverId)).data.get('members', [])
         );
 
         match /messages/{messageId} {
           allow read: if request.auth != null;
+          // Create: must be your own message, or a bot/system message.
           allow create: if request.auth != null && (
             request.resource.data.uid == request.auth.uid ||
             request.resource.data.type == 'bot' ||
             request.resource.data.type == 'system'
           );
+          // Update: your own message, polls, game messages, or
+          // any member updating only social fields (reactions, important, pinned).
           allow update: if request.auth != null && (
             resource.data.uid == request.auth.uid ||
-            resource.data.type == 'poll'
+            resource.data.type == 'poll' ||
+            resource.data.type == 'chess-live' ||
+            resource.data.type == 'uno' ||
+            request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['reactions', 'important', 'pinned'])
           );
           allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
         }
@@ -52,14 +68,15 @@ service cloud.firestore {
       }
 
       match /categories/{categoryId} {
-        allow read: if request.auth != null;
+        allow read:  if request.auth != null;
         allow write: if request.auth != null && (
           request.auth.uid == get(/databases/$(database)/documents/servers/$(serverId)).data.ownerId ||
-          request.auth.uid in get(/databases/$(database)/documents/servers/$(serverId)).data.members
+          request.auth.uid in get(/databases/$(database)/documents/servers/$(serverId)).data.get('members', [])
         );
       }
     }
 
+    // DMs: only the two participants can read or write.
     match /dms/{dmId} {
       allow read, write: if request.auth != null && dmId.split('_').hasAny([request.auth.uid]);
 
@@ -77,26 +94,35 @@ service cloud.firestore {
       }
     }
 
+    // Friend requests: sender or recipient can read/write.
     match /friendRequests/{reqId} {
       allow read: if request.auth != null && (
-        resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid
+        resource.data.fromUid == request.auth.uid ||
+        resource.data.toUid   == request.auth.uid
       );
-      allow create: if request.auth != null && request.resource.data.fromUid == request.auth.uid;
+      allow create: if request.auth != null &&
+        request.resource.data.fromUid == request.auth.uid;
       allow update, delete: if request.auth != null && (
-        resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid
+        resource.data.fromUid == request.auth.uid ||
+        resource.data.toUid   == request.auth.uid
       );
     }
 
+    // Server invites: sender or recipient can read/write.
     match /serverInvites/{inviteId} {
       allow read: if request.auth != null && (
-        resource.data.toUid == request.auth.uid || resource.data.fromUid == request.auth.uid
+        resource.data.toUid   == request.auth.uid ||
+        resource.data.fromUid == request.auth.uid
       );
-      allow create: if request.auth != null && request.resource.data.fromUid == request.auth.uid;
+      allow create: if request.auth != null &&
+        request.resource.data.fromUid == request.auth.uid;
       allow update, delete: if request.auth != null && (
-        resource.data.toUid == request.auth.uid || resource.data.fromUid == request.auth.uid
+        resource.data.toUid   == request.auth.uid ||
+        resource.data.fromUid == request.auth.uid
       );
     }
 
+    // Calls: any authenticated user can read/write (needed for WebRTC signaling).
     match /calls/{callId} {
       allow read, write: if request.auth != null;
 
@@ -104,5 +130,6 @@ service cloud.firestore {
         allow read, write: if request.auth != null;
       }
     }
+
   }
 }

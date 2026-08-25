@@ -28,7 +28,7 @@ export function AuthProvider({ children }) {
   async function register(email, password, displayName) {
     const cred = await createUserWithEmailAndPassword(auth, email, password)
     await updateProfile(cred.user, { displayName })
-    sendEmailVerification(cred.user, ACTION_CODE_SETTINGS).catch(() => {})
+    // Email verification removed — accounts work immediately
     setDoc(doc(db, 'users', cred.user.uid), {
       uid: cred.user.uid,
       displayName,
@@ -104,9 +104,14 @@ export function AuthProvider({ children }) {
         } else {
           document.body.removeAttribute('data-ray')
         }
+        if (data.pandaMode) {
+          document.body.setAttribute('data-panda', 'true')
+        } else {
+          document.body.removeAttribute('data-panda')
+        }
       }
     })
-    return () => { unsub(); document.body.removeAttribute('data-ray') }
+    return () => { unsub(); document.body.removeAttribute('data-ray'); document.body.removeAttribute('data-panda') }
   }, [currentUser?.uid])
 
   return (

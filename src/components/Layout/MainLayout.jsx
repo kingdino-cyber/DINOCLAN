@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { doc, onSnapshot, collection, query, orderBy, getDocs, getDoc, updateDoc, arrayUnion } from 'firebase/firestore'
 import { db } from '../../firebase'
@@ -24,6 +24,7 @@ export default function MainLayout() {
   const [activeChannelId, setActiveChannelId] = useState(null)
   const [activeDmUid, setActiveDmUid]       = useState(null)
   const [showDiscover, setShowDiscover]     = useState(false)
+  const [show67, setShow67]                 = useState(false)
 
   const location = useLocation()
   const navigate = useNavigate()
@@ -58,11 +59,31 @@ export default function MainLayout() {
     })()
   }, [location.pathname, currentUser?.uid]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const lastEventRef = useRef(null)
   useEffect(() => {
     if (!activeServerId) { setActiveServer(null); setActiveChannelId(null); return }
     const unsub = onSnapshot(doc(db, 'servers', activeServerId), snap => {
-      if (snap.exists()) setActiveServer({ id: snap.id, ...snap.data() })
-      else { setActiveServer(null); setActiveChannelId(null) }
+      if (snap.exists()) {
+        const data = snap.data()
+        setActiveServer({ id: snap.id, ...data })
+        // /67 screen event — only fire if the event happened in the last 6 seconds
+        const ev = data.screenEvent
+        if (ev?.type === '67' && ev.at) {
+          const ts  = ev.at.toMillis?.() ?? 0
+          const age = Date.now() - ts
+          if (ts !== lastEventRef.current && age < 6000) {
+            lastEventRef.current = ts
+            setShow67(true)
+            setTimeout(() => setShow67(false), 5000)
+            // Say "67" out loud
+            try {
+              const u = new SpeechSynthesisUtterance('67')
+              u.rate = 0.85; u.pitch = 1.1; u.volume = 1
+              window.speechSynthesis.speak(u)
+            } catch (_) {}
+          }
+        }
+      } else { setActiveServer(null); setActiveChannelId(null) }
     })
     return unsub
   }, [activeServerId])
@@ -104,6 +125,11 @@ export default function MainLayout() {
   return (
     <ProfileProvider>
       <div className="app-layout">
+        {show67 && (
+          <div className="overlay-67" onClick={() => setShow67(false)}>
+            <span className="overlay-67-text">67</span>
+          </div>
+        )}
         <DinoDecorations />
         <IncomingCallBanner />
         <CallUI />

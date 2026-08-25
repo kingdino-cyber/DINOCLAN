@@ -10,6 +10,12 @@ async function saveRayMode(uid, enabled) {
   else         document.body.removeAttribute('data-ray')
 }
 
+async function savePandaMode(uid, enabled) {
+  await updateDoc(doc(db, 'users', uid), { pandaMode: enabled })
+  if (enabled) document.body.setAttribute('data-panda', 'true')
+  else         document.body.removeAttribute('data-panda')
+}
+
 const PRESET_AVATARS = [
   { id: 'dino1',  emoji: '🦕', bg: '#5a9e44' },
   { id: 'dino2',  emoji: '🦖', bg: '#c0392b' },
@@ -51,10 +57,12 @@ function compressImage(file, maxSize = 128) {
 }
 
 export default function Settings({ onClose }) {
-  const { currentUser, changePassword, resendVerificationEmail } = useAuth()
+  const { currentUser, changePassword } = useAuth()
   const [tab, setTab] = useState('profile')
   const [rayMode, setRayMode] = useState(false)
   const [rayToggling, setRayToggling] = useState(false)
+  const [pandaMode, setPandaMode] = useState(false)
+  const [pandaToggling, setPandaToggling] = useState(false)
 
   // Profile state
   const [displayName,    setDisplayName]    = useState(currentUser?.displayName || '')
@@ -74,7 +82,6 @@ export default function Settings({ onClose }) {
   const [pwSaving,    setPwSaving]    = useState(false)
   const [pwSaved,     setPwSaved]     = useState(false)
   const [pwError,     setPwError]     = useState('')
-  const [verifySent,  setVerifySent]  = useState(false)
 
   // Load existing About Me + Ray Mode on mount
   useEffect(() => {
@@ -83,6 +90,7 @@ export default function Settings({ onClose }) {
       if (snap.exists()) {
         setAboutMe(snap.data().aboutMe || '')
         setRayMode(!!snap.data().rayMode)
+        setPandaMode(!!snap.data().pandaMode)
       }
     })
   }, [currentUser?.uid])
@@ -93,6 +101,14 @@ export default function Settings({ onClose }) {
     setRayMode(next)
     try { await saveRayMode(currentUser.uid, next) } catch (_) { setRayMode(!next) }
     setRayToggling(false)
+  }
+
+  async function handlePandaToggle() {
+    setPandaToggling(true)
+    const next = !pandaMode
+    setPandaMode(next)
+    try { await savePandaMode(currentUser.uid, next) } catch (_) { setPandaMode(!next) }
+    setPandaToggling(false)
   }
 
   // ── Profile handlers ────────────────────────────────────────────────────────
@@ -159,14 +175,6 @@ export default function Settings({ onClose }) {
     } finally { setPwSaving(false) }
   }
 
-  async function handleResendVerification() {
-    try {
-      await resendVerificationEmail()
-      setVerifySent(true)
-    } catch { /* ignore */ }
-  }
-
-  const isEmailVerified = currentUser?.emailVerified
   const avatarDisplay = previewUrl
     ? <img src={previewUrl} alt="preview" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
     : selectedAvatar
@@ -269,36 +277,6 @@ export default function Settings({ onClose }) {
             <>
               <h2>Security</h2>
 
-              {/* Email verification banner */}
-              {!isEmailVerified && (
-                <div style={{
-                  background: 'rgba(250,166,26,0.12)',
-                  border: '1px solid #faa61a',
-                  borderRadius: 8, padding: '12px 14px', marginBottom: 20,
-                  fontSize: 13,
-                }}>
-                  <div style={{ fontWeight: 700, color: '#faa61a', marginBottom: 4 }}>⚠️ Email not verified</div>
-                  <div style={{ color: 'var(--text-muted)', marginBottom: 8 }}>
-                    Verify your email to secure your account. Check <strong>{currentUser?.email}</strong> for the link.
-                  </div>
-                  {verifySent
-                    ? <div style={{ color: 'var(--success)', fontWeight: 600 }}>✓ Verification email sent!</div>
-                    : <button className="btn-confirm" style={{ padding: '6px 14px', fontSize: 12 }} onClick={handleResendVerification}>
-                        Resend verification email
-                      </button>
-                  }
-                </div>
-              )}
-              {isEmailVerified && (
-                <div style={{
-                  background: 'rgba(59,165,93,0.12)',
-                  border: '1px solid var(--success)',
-                  borderRadius: 8, padding: '10px 14px', marginBottom: 20,
-                  fontSize: 13, color: 'var(--success)', fontWeight: 600,
-                }}>
-                  ✓ Email verified — {currentUser?.email}
-                </div>
-              )}
 
               {/* Change password form */}
               <h3 style={{ fontSize: 14, color: 'var(--header-primary)', marginBottom: 12 }}>Change Password</h3>
@@ -407,8 +385,75 @@ export default function Settings({ onClose }) {
                 )}
               </div>
 
+              {/* Panda Mode toggle */}
+              <div style={{
+                background: 'var(--bg-tertiary)',
+                border: '1px solid var(--bg-modifier)',
+                borderRadius: 10,
+                padding: '18px 20px',
+                marginBottom: 24,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--header-primary)', marginBottom: 6 }}>
+                      🐼 Panda Mode
+                    </div>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55 }}>
+                      Transforms DinoLAN into a panda-themed experience:
+                    </div>
+                    <ul style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7, margin: '8px 0 0 16px', padding: 0 }}>
+                      <li>Black &amp; white panda colour scheme throughout</li>
+                      <li>Panda emoji watermark decorations</li>
+                      <li>Bamboo-green accent colour</li>
+                      <li>Rounded, soft UI corners</li>
+                    </ul>
+                  </div>
+                  <button
+                    onClick={handlePandaToggle}
+                    disabled={pandaToggling}
+                    style={{
+                      flexShrink: 0,
+                      width: 52,
+                      height: 28,
+                      borderRadius: 14,
+                      border: 'none',
+                      background: pandaMode ? '#4a7c59' : 'var(--bg-modifier)',
+                      cursor: pandaToggling ? 'wait' : 'pointer',
+                      position: 'relative',
+                      transition: 'background .2s',
+                    }}
+                    title={pandaMode ? 'Disable Panda Mode' : 'Enable Panda Mode'}
+                  >
+                    <span style={{
+                      position: 'absolute',
+                      top: 3, left: pandaMode ? 27 : 3,
+                      width: 22, height: 22,
+                      borderRadius: '50%',
+                      background: '#fff',
+                      boxShadow: '0 1px 4px rgba(0,0,0,.4)',
+                      transition: 'left .2s',
+                      display: 'block',
+                    }} />
+                  </button>
+                </div>
+                {pandaMode && (
+                  <div style={{
+                    marginTop: 14,
+                    padding: '8px 12px',
+                    background: 'rgba(74,124,89,.15)',
+                    border: '1px solid rgba(74,124,89,.4)',
+                    borderRadius: 6,
+                    fontSize: 12,
+                    color: '#4a7c59',
+                    fontWeight: 600,
+                  }}>
+                    🐼 Panda Mode is active — looking cute!
+                  </div>
+                )}
+              </div>
+
               <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                This setting is saved to your account and applies only to you.
+                These settings are saved to your account and apply only to you.
               </div>
             </>
           )}

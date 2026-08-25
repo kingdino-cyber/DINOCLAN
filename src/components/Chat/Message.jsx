@@ -6,6 +6,9 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useProfile } from '../../contexts/ProfileContext'
 import { isAdmin, SERVER_RANK_TAGS, GLOBAL_RANK_TAGS } from '../../utils/admin'
 import Avatar from './Avatar'
+import ChessPuzzle from './ChessPuzzle'
+import ChessLive from './ChessLive'
+import UnoGame from './UnoGame'
 
 function parseMentions(content, currentUid) {
   if (!content || !content.includes('@[')) return content
@@ -430,7 +433,7 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
 
   const isPoll    = message.type === 'poll'
   const isOwn     = message.uid === currentUser?.uid
-  const canEdit   = isOwn && !!message.content && !isPoll
+  const canEdit   = isOwn && !!message.content && !isPoll && message.type !== 'chess'
   const canDelete = isOwn || isAdmin(currentUser, null)
 
   const sameAuthor = !isFirst &&
@@ -473,6 +476,10 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
     if (message.uid) openProfile(message.uid)
   }
 
+  const isChess     = message.type === 'chess'
+  const isChessLive = message.type === 'chess-live'
+  const isUno       = message.type === 'uno'
+
   const actions = !editing && hovered && (
     <MessageActions
       message={message}
@@ -480,7 +487,7 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
       channelId={channelId}
       canEdit={canEdit}
       canDelete={canDelete}
-      onReply={!isPoll ? onReply : null}
+      onReply={!isPoll && !isChess && !isChessLive && !isUno ? onReply : null}
       onEdit={e => { e?.stopPropagation(); setEditing(true) }}
       onDelete={handleDelete}
     />
@@ -502,6 +509,18 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
     <>
       {isPoll ? (
         <PollMessage message={message} messageRef={messageRef} />
+      ) : isChess ? (
+        <>
+          {message.content && (
+            <p className="msg-content">{parseMentions(message.content, currentUser?.uid)}</p>
+          )}
+          <ChessPuzzle puzzle={message.chessPuzzle || {}} />
+          <ReactionBar message={message} messageRef={messageRef} />
+        </>
+      ) : isChessLive ? (
+        <ChessLive messageRef={messageRef} initialData={message} />
+      ) : isUno ? (
+        <UnoGame messageRef={messageRef} initialData={message} />
       ) : (
         <>
           {message.content && !editing && (

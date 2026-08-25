@@ -4,7 +4,8 @@ import {
   addDoc, serverTimestamp, doc, onSnapshot as fsSnap,
   setDoc, updateDoc, deleteField,
 } from 'firebase/firestore'
-import { db } from '../../firebase'
+import { db, storage } from '../../firebase'
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { useAuth } from '../../contexts/AuthContext'
 import { isOperator } from '../../utils/admin'
 import { useCall } from '../../contexts/CallContext'
@@ -28,6 +29,65 @@ function formatTs(ts) {
 }
 
 function getDmId(uid1, uid2) { return [uid1, uid2].sort().join('_') }
+
+const BASE64_MAX_BYTES = 700 * 1024
+
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload  = e => resolve(e.target.result)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return ''
+  if (bytes < 1024)         return `${bytes} B`
+  if (bytes < 1024*1024)   return `${(bytes/1024).toFixed(1)} KB`
+  return `${(bytes/(1024*1024)).toFixed(1)} MB`
+}
+
+function getFileIcon(name) {
+  const ext = (name || '').split('.').pop().toLowerCase()
+  if (ext === 'jar')                          return '☕'
+  if (['zip','rar','7z'].includes(ext))       return '🗜️'
+  if (['pdf'].includes(ext))                  return '📄'
+  if (['doc','docx'].includes(ext))           return '📝'
+  if (['xls','xlsx'].includes(ext))           return '📊'
+  if (['mp4','mov','avi','mkv'].includes(ext))return '🎬'
+  if (['mp3','wav','ogg'].includes(ext))      return '🎵'
+  return '📎'
+}
+
+function DmFileAttachment({ url, name, size }) {
+  const [downloading, setDownloading] = useState(false)
+  async function handleDownload(e) {
+    e.preventDefault()
+    if (!url) return
+    if (url.startsWith('data:')) {
+      const a = document.createElement('a'); a.href = url; a.download = name || 'file'; a.click(); return
+    }
+    setDownloading(true)
+    try {
+      const res = await fetch(url); const blob = await res.blob()
+      const objUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a'); a.href = objUrl; a.download = name || 'file'; a.click()
+      setTimeout(() => URL.revokeObjectURL(objUrl), 10000)
+    } catch { window.open(url, '_blank') }
+    finally { setDownloading(false) }
+  }
+  return (
+    <div className="file-attachment" onClick={handleDownload} style={{ cursor: downloading ? 'wait' : 'pointer' }}>
+      <span className="file-attach-icon">{getFileIcon(name)}</span>
+      <div className="file-attach-info">
+        <span className="file-attach-name">{name || 'File'}</span>
+        {size > 0 && <span className="file-attach-size">{formatFileSize(size)}</span>}
+      </div>
+      <span className="file-attach-dl">{downloading ? '⏳' : '⬇️'}</span>
+    </div>
+  )
+}
 
 function compressImage(file) {
   return new Promise(resolve => {
@@ -61,8 +121,10 @@ export default function DirectMessageView({ otherUid, onClose }) {
   const [messages,     setMessages]     = useState([])
   const [text,         setText]         = useState('')
   const [sending,      setSending]      = useState(false)
-  const [pendingImage, setPendingImage] = useState(null)
-  const [showEmoji,    setShowEmoji]    = useState(false)
+  const [pendingImage,    setPendingImage]    = useState(null)
+  const [pendingFile,     setPendingFile]     = useState(null)
+  const [uploadProgress,  setUploadProgress]  = useState(null)
+  const [showEmoji,       setShowEmoji]       = useState(false)
   const [emojiTab,     setEmojiTab]     = useState(0)
   const [otherTyping,  setOtherTyping]  = useState(false)
 
@@ -202,39 +264,76 @@ export default function DirectMessageView({ otherUid, onClose }) {
   async function handleFileSelect(e) {
     const file = e.target.files?.[0]
     if (!file) return
-    const dataUrl = await compressImage(file)
-    setPendingImage(dataUrl)
     e.target.value = ''
+    if (file.type.startsWith('image/')) {
+      const dataUrl = await compressImage(file)
+      setPendingImage(dataUrl)
+      setPendingFile(null)
+    } else {
+      setPendingFile({ file, name: file.name, size: file.size, type: file.type })
+      setPendingImage(null)
+    }
+  }
+
+  async function uploadToStorage(file) {
+    const path = `dm-attachments/${dmId}/${Date.now()}_${file.name}`
+    const ref = storageRef(storage, path)
+    await uploadBytes(ref, file)
+    return await getDownloadURL(ref)
   }
 
   async function sendMessage() {
     const content = text.trim()
-    if ((!content && !pendingImage) || sending) return
+    if ((!content && !pendingImage && !pendingFile) || sending) return
     setSending(true)
     const imageToSend = pendingImage
+    const fileToSend  = pendingFile
     setText('')
     setPendingImage(null)
+    setPendingFile(null)
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     clearTyping()
     clearTimeout(typingTimeout.current)
 
     try {
       const senderName = myData?.displayName || currentUser.displayName || currentUser.email
+
+      let fileURL = null, fileData = null, fileName = null, fileSize = null, fileType = null
+      if (fileToSend) {
+        fileName = fileToSend.name
+        fileSize = fileToSend.size
+        fileType = fileToSend.type
+        if (fileToSend.size <= BASE64_MAX_BYTES) {
+          fileData = await readFileAsDataURL(fileToSend.file)
+        } else {
+          setUploadProgress('uploading')
+          try { fileURL = await uploadToStorage(fileToSend.file) }
+          catch { setPendingFile(fileToSend); setSending(false); setUploadProgress(null); return }
+          finally { setUploadProgress(null) }
+        }
+      }
+
       await addDoc(collection(db, 'dms', dmId, 'messages'), {
-        content: content || '',
-        uid: currentUser.uid,
+        content:     content || '',
+        uid:         currentUser.uid,
         displayName: senderName,
-        photoURL: myData?.photoURL || null,
+        photoURL:    myData?.photoURL    || null,
         avatarEmoji: myData?.avatarEmoji || null,
-        avatarBg: myData?.avatarBg || null,
-        isAdmin: isOperator(currentUser),
-        imageURL: imageToSend || null,
-        createdAt: serverTimestamp(),
+        avatarBg:    myData?.avatarBg    || null,
+        isAdmin:     isOperator(currentUser),
+        imageURL:    imageToSend || null,
+        fileData:    fileData    || null,
+        fileURL:     fileURL     || null,
+        fileName:    fileName    || null,
+        fileSize:    fileSize    || null,
+        fileType:    fileType    || null,
+        createdAt:   serverTimestamp(),
       })
+      const preview = content ? content.slice(0, 80) : imageToSend ? '📷 Image' : `📎 ${fileToSend?.name}`
       addDoc(collection(db, 'users', otherUid, 'notifications'), {
-        fromUid: currentUser.uid,
+        fromUid:  currentUser.uid,
         fromName: senderName,
-        preview: content ? content.slice(0, 80) : '📷 Image',
+        preview,
         createdAt: serverTimestamp(),
         read: false,
       }).catch(() => {})
@@ -242,6 +341,7 @@ export default function DirectMessageView({ otherUid, onClose }) {
       console.error('DM send failed', err)
     } finally {
       setSending(false)
+      setUploadProgress(null)
     }
   }
 
@@ -249,7 +349,7 @@ export default function DirectMessageView({ otherUid, onClose }) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
   }
 
-  const canSend = text.trim().length > 0 || !!pendingImage
+  const canSend = text.trim().length > 0 || !!pendingImage || !!pendingFile
 
   return (
     <div className="dm-view">
@@ -302,6 +402,13 @@ export default function DirectMessageView({ otherUid, onClose }) {
                   <img src={msg.imageURL} alt="attachment" className="msg-image"
                     onClick={() => window.open(msg.imageURL, '_blank')} />
                 )}
+                {(msg.fileData || msg.fileURL) && (
+                  <DmFileAttachment
+                    url={msg.fileData || msg.fileURL}
+                    name={msg.fileName}
+                    size={msg.fileSize}
+                  />
+                )}
               </div>
             </div>
           )
@@ -333,9 +440,18 @@ export default function DirectMessageView({ otherUid, onClose }) {
             <button className="pending-image-remove" onClick={() => setPendingImage(null)}>✕</button>
           </div>
         )}
+        {pendingFile && (
+          <div className="pending-file-preview">
+            <span className="pending-file-icon">{getFileIcon(pendingFile.name)}</span>
+            <span className="pending-file-name">{pendingFile.name}</span>
+            <span className="pending-file-size">{formatFileSize(pendingFile.size)}</span>
+            {uploadProgress === 'uploading' && <span style={{ fontSize: 11, color: 'var(--accent)', marginLeft: 4 }}>Uploading…</span>}
+            <button className="pending-image-remove" onClick={() => setPendingFile(null)}>✕</button>
+          </div>
+        )}
         <div className="message-input-box">
-          <button className="attach-btn" onClick={() => fileRef.current?.click()} title="Upload image">+</button>
-          <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileSelect} />
+          <button className="attach-btn" onClick={() => fileRef.current?.click()} title="Attach file">+</button>
+          <input ref={fileRef} type="file" style={{ display: 'none' }} onChange={handleFileSelect} />
 
           <textarea
             ref={textareaRef}
