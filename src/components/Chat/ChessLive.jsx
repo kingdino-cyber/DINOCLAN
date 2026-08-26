@@ -13,9 +13,15 @@ const SYMBOLS = {
 const FILES = ['a','b','c','d','e','f','g','h']
 const RANKS = ['8','7','6','5','4','3','2','1']
 
+function parseMove(m) {
+  if (typeof m === 'string') return m.split(',').map(Number)
+  return m // backwards compat with old array moves
+}
+
 function replayMoves(moves) {
   let board = fenToBoard(START_FEN)
-  for (const [fr, fc, tr, tc] of moves) {
+  for (const m of moves) {
+    const [fr, fc, tr, tc] = parseMove(m)
     board = applyMove(board, fr, fc, tr, tc)
   }
   return board
@@ -92,7 +98,7 @@ export default function ChessLive({ messageRef, initialData }) {
       const [sr, sc] = selected
       if (legal.some(([lr, lc]) => lr === r && lc === c)) {
         const captured = board[r][c]
-        const move     = [sr, sc, r, c]
+        const move     = `${sr},${sc},${r},${c}`
         setSelected(null); setLegal([])
         setLastMove([[sr, sc], [r, c]])
         if (captured) playChessCapture(); else playChessMove()
@@ -120,8 +126,8 @@ export default function ChessLive({ messageRef, initialData }) {
   // Update lastMove from game moves
   useEffect(() => {
     if (moves.length > 0) {
-      const last = moves[moves.length - 1]
-      setLastMove([[last[0], last[1]], [last[2], last[3]]])
+      const [r0, c0, r1, c1] = parseMove(moves[moves.length - 1])
+      setLastMove([[r0, c0], [r1, c1]])
       if (localStatus === 'checkmate') playCheckmate()
     }
   }, [moves.length])
