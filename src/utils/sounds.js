@@ -74,6 +74,12 @@ export function playFail() {
   tone(220, 0.3,  'sawtooth', 0.15, 0.25)
 }
 
+// Wrong move in chess puzzle
+export function playWrongMove() {
+  tone(200, 0.06, 'sawtooth', 0.3)
+  tone(170, 0.1,  'sawtooth', 0.25, 0.06)
+}
+
 // UNO — card played
 export function playUnoCard() {
   noise(0.04, 0.3)

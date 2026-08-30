@@ -68,11 +68,48 @@ function UnoCard({ card, small = false, faceDown = false, playable = false, onCl
   )
 }
 
+// Returns true only if card can legally counter the active draw stack
+function canCounterDraw(card, drawStack, discardTop) {
+  if (drawStack === 0) return true
+  if (discardTop?.type === 'draw2'  && card.type === 'draw2')  return true
+  if (discardTop?.type === 'wild4'  && card.type === 'wild4')  return true
+  return false
+}
+
+// Advance turn index, treating reverse as skip in 2-player games
+function nextTurn(currentIdx, dir, n) {
+  return ((currentIdx + dir) % n + n) % n
+}
+
+function applyCardEffects(card, currentIdx, dir, n, drawStack) {
+  let nextIdx = currentIdx
+  let newDir  = dir
+  let newDraw = drawStack
+
+  if (card.type === 'reverse') {
+    newDir = dir * -1
+    // In a 2-player game, reverse acts as skip (same player goes again)
+    nextIdx = n === 2 ? currentIdx : nextTurn(currentIdx, newDir, n)
+  } else if (card.type === 'skip') {
+    nextIdx = nextTurn(nextTurn(currentIdx, dir, n), dir, n)
+  } else if (card.type === 'draw2') {
+    newDraw += 2
+    nextIdx = nextTurn(currentIdx, dir, n)
+  } else if (card.type === 'wild4') {
+    newDraw += 4
+    nextIdx = nextTurn(currentIdx, dir, n)
+  } else {
+    nextIdx = nextTurn(currentIdx, dir, n)
+  }
+  return { nextIdx, newDir, newDraw }
+}
+
 export default function UnoGame({ messageRef, initialData }) {
   const { currentUser, userData } = useAuth()
   const [game, setGame]               = useState(initialData?.unoGame || {})
   const [choosingColor, setChoosingColor] = useState(false)
   const [pendingCard, setPendingCard]     = useState(null)
+  const [drawnCard, setDrawnCard]         = useState(null) // card drawn this turn that can be played
 
   useEffect(() => {
     return onSnapshot(messageRef, snap => {
@@ -106,7 +143,7 @@ export default function UnoGame({ messageRef, initialData }) {
     const cpuHand = game.hands?.[CPU_UID] || []
     const timer = setTimeout(async () => {
       const playableIdx = cpuHand.findIndex(c =>
-        (game.drawStack === 0 || c.type === 'draw2' || c.type === 'wild4') &&
+        canCounterDraw(c, game.drawStack, discardTop) &&
         canPlay(c, discardTop, discardColor)
       )
 
@@ -158,11 +195,12 @@ export default function UnoGame({ messageRef, initialData }) {
         return
       }
 
-      if      (card.type === 'reverse') { playUnoSpecial(); dir *= -1; nextIdx = ((nextIdx + dir) % n + n) % n }
-      else if (card.type === 'skip')    { playUnoSpecial(); nextIdx = ((nextIdx + dir * 2) % n + n) % n }
-      else if (card.type === 'draw2')   { playUnoSpecial(); drawStack += 2; nextIdx = ((nextIdx + dir) % n + n) % n }
-      else if (card.type === 'wild4')   { playUnoSpecial(); drawStack += 4; nextIdx = ((nextIdx + dir) % n + n) % n }
-      else                              { playUnoCard();    nextIdx = ((nextIdx + dir) % n + n) % n }
+      const isSpecial = ['reverse','skip','draw2','wild4'].includes(card.type)
+      if (isSpecial) playUnoSpecial(); else playUnoCard()
+      const effects = applyCardEffects(card, nextIdx, dir, n, drawStack)
+      dir       = effects.newDir
+      drawStack = effects.newDraw
+      nextIdx   = effects.nextIdx
 
       await updateDoc(messageRef, {
         'unoGame.hands':               newHands,
@@ -191,16 +229,20 @@ export default function UnoGame({ messageRef, initialData }) {
     let   deckLeft = [...deck]
     for (const p of game.players) hands[p.uid] = deckLeft.splice(0, HAND_SIZE)
     let firstCard = deckLeft.shift()
+    // Wilds can't start the game
     while (firstCard.color === 'wild') { deckLeft.push(firstCard); firstCard = deckLeft.shift() }
+    const n = game.players.length
+    // Apply first card effects
+    const effects = applyCardEffects(firstCard, 0, 1, n, 0)
     await updateDoc(messageRef, {
       'unoGame.hands':               hands,
       'unoGame.deck':                deckLeft,
       'unoGame.discard':             [firstCard],
       'unoGame.discardColor':        firstCard.color,
       'unoGame.status':              'active',
-      'unoGame.currentPlayerIndex':  0,
-      'unoGame.direction':           1,
-      'unoGame.drawStack':           0,
+      'unoGame.currentPlayerIndex':  effects.nextIdx,
+      'unoGame.direction':           effects.newDir,
+      'unoGame.drawStack':           effects.newDraw,
     })
   }
 
@@ -208,6 +250,9 @@ export default function UnoGame({ messageRef, initialData }) {
     if (!isMyTurn) return
     const card = myHand[cardIndex]
     if (!card) return
+    // If a card was drawn this turn, only that card may be played
+    if (drawnCard && drawnCard.handIdx !== cardIndex) return
+    if (!canCounterDraw(card, game.drawStack, discardTop)) return
     if (!canPlay(card, discardTop, discardColor)) return
     if (card.type === 'wild' || card.type === 'wild4') {
       playUnoWild()
@@ -247,11 +292,13 @@ export default function UnoGame({ messageRef, initialData }) {
       return
     }
 
-    if      (card.type === 'reverse') { playUnoSpecial(); dir = dir * -1; nextIdx = ((nextIdx + dir) % n + n) % n }
-    else if (card.type === 'skip')    { playUnoSpecial(); nextIdx = ((nextIdx + dir * 2) % n + n) % n }
-    else if (card.type === 'draw2')   { playUnoSpecial(); drawStack += 2; nextIdx = ((nextIdx + dir) % n + n) % n }
-    else if (card.type === 'wild4')   { playUnoSpecial(); drawStack += 4; nextIdx = ((nextIdx + dir) % n + n) % n }
-    else                              { playUnoCard(); nextIdx = ((nextIdx + dir) % n + n) % n }
+    const isSpecial = ['reverse','skip','draw2','wild4'].includes(card.type)
+    if (isSpecial) playUnoSpecial(); else playUnoCard()
+    const effects = applyCardEffects(card, nextIdx, dir, n, drawStack)
+    dir       = effects.newDir
+    drawStack = effects.newDraw
+    nextIdx   = effects.nextIdx
+    setDrawnCard(null)
 
     await updateDoc(messageRef, {
       'unoGame.hands':               newHands,
@@ -265,24 +312,58 @@ export default function UnoGame({ messageRef, initialData }) {
   }
 
   async function drawCard() {
-    if (!isMyTurn) return
+    if (!isMyTurn || drawnCard) return
     let deck = [...(game.deck || [])]
-    if (deck.length < (game.drawStack || 1)) {
-      const reshuffled = shuffle(game.discard.slice(0, -1))
-      deck = [...deck, ...reshuffled]
+    if (deck.length < Math.max(game.drawStack || 1, 1)) {
+      deck = [...deck, ...shuffle(game.discard.slice(0, -1))]
     }
     playUnoDraw()
-    const count   = game.drawStack > 0 ? game.drawStack : 1
-    const drawn   = deck.splice(0, count)
-    const newHand = [...myHand, ...drawn]
-    const n       = game.players.length
-    const nextIdx = ((game.currentPlayerIndex + game.direction) % n + n) % n
-    await updateDoc(messageRef, {
-      [`unoGame.hands.${myUid}`]:    newHand,
-      'unoGame.deck':                deck,
-      'unoGame.drawStack':           0,
-      'unoGame.currentPlayerIndex':  nextIdx,
-    })
+    const n = game.players.length
+    const nextIdx = nextTurn(game.currentPlayerIndex, game.direction, n)
+
+    if (game.drawStack > 0) {
+      // Forced draw — draw the stack and pass turn immediately
+      const drawn   = deck.splice(0, game.drawStack)
+      const newHand = [...myHand, ...drawn]
+      await updateDoc(messageRef, {
+        [`unoGame.hands.${myUid}`]:   newHand,
+        'unoGame.deck':               deck,
+        'unoGame.drawStack':          0,
+        'unoGame.currentPlayerIndex': nextIdx,
+      })
+      return
+    }
+
+    // Voluntary draw — draw 1 card
+    const drawn   = deck.splice(0, 1)
+    if (!drawn.length) return
+    const newCard = drawn[0]
+    const newHand = [...myHand, newCard]
+    const handIdx = newHand.length - 1
+
+    if (canPlay(newCard, discardTop, discardColor)) {
+      // Drawn card is playable — keep turn, let player decide
+      setDrawnCard({ card: newCard, handIdx })
+      await updateDoc(messageRef, {
+        [`unoGame.hands.${myUid}`]: newHand,
+        'unoGame.deck':             deck,
+      })
+    } else {
+      // Not playable — pass turn
+      await updateDoc(messageRef, {
+        [`unoGame.hands.${myUid}`]:   newHand,
+        'unoGame.deck':               deck,
+        'unoGame.currentPlayerIndex': nextIdx,
+      })
+    }
+  }
+
+  async function passTurn() {
+    if (!isMyTurn) return
+    const n = game.players.length
+    const nextIdx = nextTurn(game.currentPlayerIndex, game.direction, n)
+    setDrawnCard(null)
+    await updateDoc(messageRef, { 'unoGame.currentPlayerIndex': nextIdx })
   }
 
   const currentPlayerName = game.players?.[game.currentPlayerIndex]?.name || ''
@@ -418,8 +499,10 @@ export default function UnoGame({ messageRef, initialData }) {
           </div>
           <div className="uno-my-hand">
             {myHand.map((card, i) => {
+              const isDrawnCard = drawnCard?.handIdx === i
               const playable = isMyTurn &&
-                (game.drawStack === 0 || card.type === 'draw2' || card.type === 'wild4') &&
+                (drawnCard ? isDrawnCard : true) &&
+                canCounterDraw(card, game.drawStack, discardTop) &&
                 canPlay(card, discardTop, discardColor)
               return (
                 <UnoCard
@@ -431,6 +514,13 @@ export default function UnoGame({ messageRef, initialData }) {
               )
             })}
           </div>
+          {/* After drawing a playable card, show Pass option */}
+          {drawnCard && isMyTurn && (
+            <button className="uno-btn uno-btn-cpu" style={{ marginTop: 8, alignSelf: 'flex-start' }} onClick={passTurn}>
+              Keep & Pass
+            </button>
+          )}
+          {/* Draw pile is disabled while holding a drawn card */}
         </div>
       ) : (
         <div className="uno-spectate">You are spectating.</div>

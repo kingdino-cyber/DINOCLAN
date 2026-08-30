@@ -123,8 +123,8 @@ export default function MessageInput({ serverId, channelId, channelName, server,
   const [chessTitle,    setChessTitle]    = useState('')
   const [chessFen,      setChessFen]      = useState('')
   const [chessSolution, setChessSolution] = useState('')
-  const [chessCaption,      setChessCaption]      = useState('')
-  const [chessMovesToSolve, setChessMovesToSolve] = useState('')
+  const [chessCaption,  setChessCaption]  = useState('')
+  const [chessUciMoves, setChessUciMoves] = useState('')
   const chessRef = useRef(null)
 
   const textareaRef      = useRef(null)
@@ -249,6 +249,7 @@ export default function MessageInput({ serverId, channelId, channelName, server,
         displayName: replyTo.displayName || 'Unknown',
         content:     replyTo.content ? replyTo.content.slice(0, 150) : '',
         imageURL:    !!replyTo.imageURL,
+        type:        replyTo.type || null,
       } : null
       if (onClearReply) onClearReply()
       await addDoc(
@@ -347,16 +348,41 @@ export default function MessageInput({ serverId, channelId, channelName, server,
       { cmd: '/chess puzzle', icon: '♟️', desc: 'Post an interactive chess puzzle' },
       { cmd: '/chess live',   icon: '⚔️', desc: 'Start a live multiplayer chess game' },
       { cmd: '/67',           icon: '6️⃣',  desc: 'Flash 67 on everyone\'s screen for 5 seconds' },
+      { cmd: '/uno',          icon: '🃏', desc: 'Start a game of UNO' },
+      { cmd: '/announce',     icon: '📣', desc: 'Post a big announcement banner — /announce [message]' },
+      { cmd: '/countdown',    icon: '⏱️', desc: 'Start a countdown timer — /countdown [minutes]' },
+      { cmd: '/dice',         icon: '🎲', desc: 'Roll a dice — result posted for everyone' },
+      { cmd: '/rawr',         icon: '🦖', desc: 'RAWR! Shake everyone\'s screen' },
+      { cmd: '/meteor',       icon: '☄️', desc: 'Unleash a meteor shower on everyone\'s screen' },
+      { cmd: '/dino-type',    icon: '🦕', desc: 'Open Dino Typer game in a new tab' },
+      { cmd: '/dino-tycoon',  icon: '🦖', desc: 'Open Dino Tycoon game in a new tab' },
+      { cmd: '/panda-games',  icon: '🐼', desc: 'Open Panda Games in a new tab' },
     ]
-    if (serverId)
-      cmds.push({ cmd: '/uno', icon: '🃏', desc: 'Start a game of UNO' })
     if (swearJarEnabled)
       cmds.push({ cmd: '/leaderboard', icon: '🫙', desc: 'Show swear jar rankings' })
     return cmds
   }
 
+  // Commands that need arguments — selecting from menu prefills text
+  const PREFILL_CMDS = new Set(['/announce', '/countdown'])
+
+  async function broadcastScreenEvent(type) {
+    await updateDoc(doc(db, 'servers', serverId), {
+      screenEvent: { type, at: serverTimestamp() }
+    })
+    setTimeout(() => {
+      updateDoc(doc(db, 'servers', serverId), { screenEvent: deleteField() }).catch(() => {})
+    }, 8000)
+  }
+
   async function runSlashCommand(cmd) {
     setShowSlash(false)
+    if (PREFILL_CMDS.has(cmd)) {
+      // Keep text input open so user can type the argument
+      setText(cmd + ' ')
+      if (textareaRef.current) { textareaRef.current.focus(); autoResize() }
+      return
+    }
     setText('')
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     if (cmd === '/chess puzzle') {
@@ -364,14 +390,21 @@ export default function MessageInput({ serverId, channelId, channelName, server,
     } else if (cmd === '/chess live') {
       await sendChessLive()
     } else if (cmd === '/67') {
-      await updateDoc(doc(db, 'servers', serverId), {
-        screenEvent: { type: '67', at: serverTimestamp() }
-      })
-      setTimeout(() => {
-        updateDoc(doc(db, 'servers', serverId), { screenEvent: deleteField() }).catch(() => {})
-      }, 6500)
+      await broadcastScreenEvent('67')
     } else if (cmd === '/uno') {
       await sendUnoGame()
+    } else if (cmd === '/dice') {
+      await sendDice()
+    } else if (cmd === '/rawr') {
+      await broadcastScreenEvent('rawr')
+    } else if (cmd === '/meteor') {
+      await broadcastScreenEvent('meteor')
+    } else if (cmd === '/dino-type') {
+      window.open('https://dino-typer.netlify.app', '_blank')
+    } else if (cmd === '/dino-tycoon') {
+      window.open('https://dinotycoon-lynr.onrender.com', '_blank')
+    } else if (cmd === '/panda-games') {
+      window.open('https://panda-games.vercel.app', '_blank')
     } else if (cmd === '/leaderboard') {
       clearTyping()
       await handleLeaderboard()
@@ -616,6 +649,40 @@ export default function MessageInput({ serverId, channelId, channelName, server,
       return
     }
 
+    // /announce [message]
+    const announceMatch = content.match(/^\/announce\s+(.+)/is)
+    if (announceMatch && serverId && channelId) {
+      setText('')
+      if (textareaRef.current) textareaRef.current.style.height = 'auto'
+      clearTyping()
+      await sendAnnounce(announceMatch[1].trim())
+      return
+    }
+
+    // /countdown [minutes]
+    const countdownMatch = content.match(/^\/countdown\s+(\d+(?:\.\d+)?)/i)
+    if (countdownMatch && serverId && channelId) {
+      setText('')
+      if (textareaRef.current) textareaRef.current.style.height = 'auto'
+      clearTyping()
+      await sendCountdown(parseFloat(countdownMatch[1]))
+      return
+    }
+
+    // Catch incomplete argument commands — show usage instead of sending as plain text
+    const USAGE_HINTS = [
+      [/^\/announce\s*$/i,                '📣  /announce [message]  — type what to announce after the command'],
+      [/^\/countdown\s*$/i,               '⏱️  /countdown [minutes]  — e.g.  /countdown 5'],
+      [/^\/countdown\s+\D/i,              '⏱️  /countdown [minutes]  — needs a number, e.g.  /countdown 5'],
+    ]
+    for (const [re, hint] of USAGE_HINTS) {
+      if (re.test(content)) {
+        setSendError(hint)
+        setTimeout(() => setSendError(''), 6000)
+        return
+      }
+    }
+
     if ((!content && !pendingImage && !pendingFile) || sending) return
     setSending(true)
     setSendError('')
@@ -685,6 +752,7 @@ export default function MessageInput({ serverId, channelId, channelName, server,
         displayName: replyToSend.displayName || 'Unknown',
         content:     replyToSend.content ? replyToSend.content.slice(0, 150) : '',
         imageURL:    !!replyToSend.imageURL,
+        type:        replyToSend.type || null,
       } : null
 
       await addDoc(
@@ -761,6 +829,58 @@ export default function MessageInput({ serverId, channelId, channelName, server,
     }
   }
 
+  // ── /announce ─────────────────────────────────────────────────────────────
+  async function sendAnnounce(message) {
+    const senderName = userData?.displayName || currentUser.displayName || currentUser.email
+    await addDoc(collection(db, 'servers', serverId, 'channels', channelId, 'messages'), {
+      type:        'announce',
+      content:     message,
+      uid:         currentUser.uid,
+      displayName: senderName,
+      photoURL:    userData?.photoURL    || null,
+      avatarEmoji: userData?.avatarEmoji || null,
+      avatarBg:    userData?.avatarBg    || null,
+      createdAt:   serverTimestamp(),
+    }).catch(err => console.error('announce failed:', err))
+    notifyMembers(`📣 ${message.slice(0, 60)}`)
+  }
+
+  // ── /countdown ────────────────────────────────────────────────────────────
+  async function sendCountdown(minutes) {
+    const senderName = userData?.displayName || currentUser.displayName || currentUser.email
+    const endsAt = new Date(Date.now() + minutes * 60 * 1000)
+    await addDoc(collection(db, 'servers', serverId, 'channels', channelId, 'messages'), {
+      type:        'countdown',
+      content:     '',
+      endsAt:      endsAt.toISOString(),
+      minutes,
+      uid:         currentUser.uid,
+      displayName: senderName,
+      photoURL:    userData?.photoURL    || null,
+      avatarEmoji: userData?.avatarEmoji || null,
+      avatarBg:    userData?.avatarBg    || null,
+      createdAt:   serverTimestamp(),
+    }).catch(err => console.error('countdown failed:', err))
+  }
+
+  // ── /dice ────────────────────────────────────────────────────────────────
+  async function sendDice() {
+    if (!serverId || !channelId) return
+    const senderName = userData?.displayName || currentUser.displayName || currentUser.email
+    const result = Math.ceil(Math.random() * 6)
+    await addDoc(collection(db, 'servers', serverId, 'channels', channelId, 'messages'), {
+      type:        'dice',
+      result,
+      content:     '',
+      uid:         currentUser.uid,
+      displayName: senderName,
+      photoURL:    userData?.photoURL    || null,
+      avatarEmoji: userData?.avatarEmoji || null,
+      avatarBg:    userData?.avatarBg    || null,
+      createdAt:   serverTimestamp(),
+    }).catch(err => console.error('dice failed:', err))
+  }
+
   // ── Send chess puzzle ─────────────────────────────────────────────────────
   async function sendChessPuzzle() {
     if (!chessFen.trim() || sending || !serverId) return
@@ -774,12 +894,16 @@ export default function MessageInput({ serverId, channelId, channelName, server,
         {
           type:        'chess',
           content:     chessCaption.trim(),
-          chessPuzzle: {
-            title:        chessTitle.trim(),
-            fen:          chessFen.trim(),
-            solution:     chessSolution.trim(),
-            movesToSolve: chessMovesToSolve ? parseInt(chessMovesToSolve, 10) : null,
-          },
+          chessPuzzle: (() => {
+            const uciArr = chessUciMoves.trim().split(/\s+/).filter(m => /^[a-h][1-8][a-h][1-8]$/.test(m))
+            return {
+              title:         chessTitle.trim(),
+              fen:           chessFen.trim(),
+              solution:      chessSolution.trim(),
+              solutionMoves: uciArr,
+              movesToSolve:  uciArr.length > 0 ? Math.ceil(uciArr.length / 2) : null,
+            }
+          })(),
           uid:         currentUser.uid,
           displayName: senderName,
           photoURL:    userData?.photoURL    || null,
@@ -792,7 +916,7 @@ export default function MessageInput({ serverId, channelId, channelName, server,
       )
       notifyMembers(chessTitle.trim() || '♟️ Chess Puzzle')
       setShowChess(false)
-      setChessTitle(''); setChessFen(''); setChessSolution(''); setChessCaption(''); setChessMovesToSolve('')
+      setChessTitle(''); setChessFen(''); setChessSolution(''); setChessCaption(''); setChessUciMoves('')
     } catch (err) {
       console.error('Failed to post chess puzzle:', err)
       setSendError('Failed to post chess puzzle.')
@@ -873,16 +997,21 @@ export default function MessageInput({ serverId, channelId, channelName, server,
 
   return (
     <>
-      {/* ── Send error banner ── */}
-      {sendError && (
-        <div style={{
-          background: 'rgba(237,66,69,.15)', border: '1px solid var(--danger)',
-          borderRadius: 6, padding: '6px 14px', margin: '0 16px 4px',
-          fontSize: 12, color: '#ed4245', flexShrink: 0,
-        }}>
-          ⚠️ {sendError}
-        </div>
-      )}
+      {/* ── Send error / usage hint banner ── */}
+      {sendError && (() => {
+        const isHint = /^[📣⏱️🗳️🦴]/.test(sendError)
+        return (
+          <div style={{
+            background: isHint ? 'rgba(88,101,242,0.1)' : 'rgba(237,66,69,.15)',
+            border: `1px solid ${isHint ? 'rgba(88,101,242,0.4)' : 'var(--danger)'}`,
+            borderRadius: 6, padding: '7px 14px', margin: '0 16px 4px',
+            fontSize: 12, color: isHint ? 'var(--accent)' : '#ed4245',
+            flexShrink: 0, lineHeight: 1.5,
+          }}>
+            {isHint ? sendError : `⚠️ ${sendError}`}
+          </div>
+        )
+      })()}
 
       {/* ── Hi Ray Jar counter ── */}
       {hiRayJarEnabled && (
@@ -927,7 +1056,15 @@ export default function MessageInput({ serverId, channelId, channelName, server,
             <span className="reply-preview-text">
               {replyTo.content
                 ? replyTo.content.slice(0, 80)
-                : replyTo.imageURL ? '📷 Image' : '📎 File'}
+                : replyTo.imageURL ? '📷 Image'
+                : replyTo.type === 'announce' ? '📣 Announcement'
+                : replyTo.type === 'countdown' ? '⏱️ Countdown'
+                : replyTo.type === 'dice' ? '🎲 Dice Roll'
+                : replyTo.type === 'chess-puzzle' ? '♟️ Chess Puzzle'
+                : replyTo.type === 'chess-live' ? '♟️ Chess Live'
+                : replyTo.type === 'uno' ? '🃏 UNO'
+                : replyTo.type === 'poll' ? '📊 Poll'
+                : '📎 File'}
             </span>
           </div>
           <button className="reply-preview-close" onClick={onClearReply} title="Cancel reply">✕</button>
@@ -966,22 +1103,32 @@ export default function MessageInput({ serverId, channelId, channelName, server,
             style={{ fontFamily: 'monospace', fontSize: 11, marginBottom: 10 }}
           />
 
-          <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Moves to solve <span style={{ fontWeight: 400 }}>— e.g. 1 for mate in 1 (required for fail detection)</span></label>
+          <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>
+            Solution Moves
+            <span style={{ fontWeight: 400, marginLeft: 4 }}>— UCI format, alternating your moves &amp; opponent's, e.g. <code style={{ background: 'var(--bg-tertiary)', padding: '0 3px', borderRadius: 3 }}>b3e6 f8e7 e6e8</code></span>
+          </label>
           <input
             className="poll-create-input"
-            type="number"
-            min="1"
-            max="20"
-            placeholder="e.g. 1"
-            value={chessMovesToSolve}
-            onChange={e => setChessMovesToSolve(e.target.value)}
-            style={{ width: 80, marginBottom: 10 }}
+            placeholder="b3e6 f8e7 e6e8"
+            value={chessUciMoves}
+            onChange={e => setChessUciMoves(e.target.value)}
+            style={{ fontFamily: 'monospace', fontSize: 12, marginBottom: 4 }}
           />
+          {chessUciMoves.trim() && (() => {
+            const arr = chessUciMoves.trim().split(/\s+/).filter(m => /^[a-h][1-8][a-h][1-8]$/.test(m))
+            const total = arr.length
+            const solverCount = Math.ceil(total / 2)
+            return total > 0
+              ? <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>
+                  {solverCount} solver move{solverCount !== 1 ? 's' : ''} · {total} total — move count auto-set
+                </div>
+              : <div style={{ fontSize: 11, color: '#f04747', marginBottom: 10 }}>⚠️ No valid UCI moves detected</div>
+          })()}
 
-          <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Solution <span style={{ fontWeight: 400 }}>— shown when someone clicks "Answer"</span></label>
+          <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Answer hint <span style={{ fontWeight: 400 }}>— optional, shown when someone clicks "Answer"</span></label>
           <textarea
             className="poll-create-input"
-            placeholder="1. Nd7 Bxd7 2. Rf3 Be6 3. Rfxh3+ Bxh3 4. Rxh3#"
+            placeholder="1. Qxe6+ Be7 2. Qe8#"
             value={chessSolution}
             onChange={e => setChessSolution(e.target.value)}
             rows={2}
@@ -1126,19 +1273,23 @@ export default function MessageInput({ serverId, channelId, channelName, server,
         {/* Slash command menu */}
         {showSlash && slashCmds.length > 0 && (
           <div className="slash-menu">
-            <div className="slash-menu-header">Commands</div>
-            {slashCmds.map((c, i) => (
-              <button
-                key={c.cmd}
-                className={`slash-menu-item${i === slashIndex ? ' active' : ''}`}
-                onMouseDown={e => { e.preventDefault(); runSlashCommand(c.cmd) }}
-                onMouseEnter={() => setSlashIndex(i)}
-              >
-                <span className="slash-menu-icon">{c.icon}</span>
-                <span className="slash-menu-cmd">{c.cmd}</span>
-                <span className="slash-menu-desc">{c.desc}</span>
-              </button>
-            ))}
+            <div className="slash-menu-header">Commands — ↑↓ to navigate · Enter to select</div>
+            <div className="slash-menu-list">
+              {slashCmds.map((c, i) => (
+                <button
+                  key={c.cmd}
+                  className={`slash-menu-item${i === slashIndex ? ' active' : ''}`}
+                  onMouseDown={e => { e.preventDefault(); runSlashCommand(c.cmd) }}
+                  onMouseEnter={() => setSlashIndex(i)}
+                >
+                  <span className="slash-menu-icon">{c.icon}</span>
+                  <div className="slash-menu-text">
+                    <span className="slash-menu-cmd">{c.cmd}</span>
+                    <span className="slash-menu-desc">{c.desc}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -1159,6 +1310,21 @@ export default function MessageInput({ serverId, channelId, channelName, server,
             ))}
           </div>
         )}
+
+        {/* Inline hint strip for argument commands */}
+        {(() => {
+          const CMD_HINTS = [
+            ['/announce ',  '📣 Type your announcement after /announce, then press Enter'],
+            ['/countdown ', '⏱️ Type the number of minutes after /countdown — e.g. /countdown 5, then Enter'],
+          ]
+          const lc = text.toLowerCase()
+          for (const [prefix, hint] of CMD_HINTS) {
+            if (lc.startsWith(prefix)) {
+              return <div className="cmd-hint-strip">{hint}</div>
+            }
+          }
+          return null
+        })()}
 
         <div className="message-input-box">
           <button

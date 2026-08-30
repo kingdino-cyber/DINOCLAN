@@ -83,6 +83,135 @@ function BotMessage({ message }) {
   )
 }
 
+/* ── Announcement — Discord embed style ── */
+function AnnounceMessage({ message }) {
+  return (
+    <div className="announce-embed-wrap">
+      <div className="announce-embed">
+        <div className="announce-embed-pill" />
+        <div className="announce-embed-inner">
+          <div className="announce-embed-author">
+            <img
+              className="announce-embed-author-icon"
+              src={message.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(message.displayName || '?')}&background=random&size=16`}
+              alt=""
+              onError={e => { e.target.style.display = 'none' }}
+            />
+            <span className="announce-embed-author-name">{message.displayName}</span>
+            <span className="announce-embed-author-badge">📣 Announcement</span>
+          </div>
+          <div className="announce-embed-description">{message.content}</div>
+          <div className="announce-embed-footer">
+            <span className="announce-embed-footer-ts">{formatTimestamp(message.createdAt)}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Dice roll ── */
+const DICE_DOTS = {
+  1: [4],
+  2: [2, 6],
+  3: [2, 4, 6],
+  4: [0, 2, 6, 8],
+  5: [0, 2, 4, 6, 8],
+  6: [0, 2, 3, 5, 6, 8],
+}
+function DiceFace({ value }) {
+  const active = DICE_DOTS[value] || []
+  return (
+    <div className="dice-face">
+      {Array.from({ length: 9 }, (_, i) => (
+        <div key={i} className={`dice-dot${active.includes(i) ? ' dice-dot-on' : ''}`} />
+      ))}
+    </div>
+  )
+}
+function DiceMessage({ message }) {
+  const [display, setDisplay] = useState(() => Math.ceil(Math.random() * 6))
+  const [rolling, setRolling] = useState(true)
+
+  useEffect(() => {
+    let count = 0
+    const flips = 14
+    const id = setInterval(() => {
+      count++
+      if (count >= flips) {
+        clearInterval(id)
+        setDisplay(message.result)
+        setRolling(false)
+      } else {
+        setDisplay(Math.ceil(Math.random() * 6))
+      }
+    }, 70)
+    return () => clearInterval(id)
+  }, [message.result])
+
+  return (
+    <div className="dice-wrap">
+      <div className={`dice-card${rolling ? ' dice-rolling' : ' dice-landed'}`}>
+        <div className="dice-header">
+          <span className="dice-name">{message.displayName}</span>
+          <span className="dice-label">rolled the dice</span>
+          <span className="dice-ts">{formatTimestamp(message.createdAt, true)}</span>
+        </div>
+        <DiceFace value={display} />
+        {!rolling && (
+          <div className="dice-result">
+            {message.result === 6 ? '🎉 Six! Lucky!' : message.result === 1 ? '😬 Snake eyes!' : `Rolled a ${message.result}`}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ── Countdown timer — Discord embed style ── */
+function CountdownMessage({ message }) {
+  const [timeLeft, setTimeLeft] = useState(0)
+
+  useEffect(() => {
+    const update = () => {
+      const end = new Date(message.endsAt).getTime()
+      setTimeLeft(Math.max(0, Math.floor((end - Date.now()) / 1000)))
+    }
+    update()
+    const id = setInterval(update, 1000)
+    return () => clearInterval(id)
+  }, [message.endsAt])
+
+  const h = Math.floor(timeLeft / 3600)
+  const m = Math.floor((timeLeft % 3600) / 60)
+  const s = timeLeft % 60
+  const pad = n => String(n).padStart(2, '0')
+  const done = timeLeft === 0
+
+  return (
+    <div className="dc-embed-wrap">
+      <div className={`dc-embed${done ? ' dc-embed-done' : ''}`}>
+        <div className="dc-embed-pill" style={{ background: done ? '#888' : '#57f287' }} />
+        <div className="dc-embed-inner">
+          <div className="dc-embed-author">
+            <span className="dc-embed-author-label">⏱️ {done ? "Time's Up!" : 'Countdown'}</span>
+            <span className="dc-embed-author-meta">started by {message.displayName}</span>
+          </div>
+          <div className="countdown-display">
+            {h > 0 && <><span className="countdown-unit">{pad(h)}</span><span className="countdown-sep">:</span></>}
+            <span className="countdown-unit">{pad(m)}</span>
+            <span className="countdown-sep">:</span>
+            <span className="countdown-unit">{pad(s)}</span>
+          </div>
+          <div className="dc-embed-footer">
+            <span className="dc-embed-footer-ts">{formatTimestamp(message.createdAt)}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── File attachment card ── */
 function FileAttachment({ url, name, size, type }) {
   const [downloading, setDownloading] = useState(false)
@@ -410,7 +539,15 @@ function ReplyQuote({ replyTo, onJump }) {
   if (!replyTo) return null
   const preview = replyTo.content
     ? replyTo.content.slice(0, 120)
-    : replyTo.imageURL ? '📷 Image' : '📎 Attachment'
+    : replyTo.imageURL ? '📷 Image'
+    : replyTo.type === 'announce' ? '📣 Announcement'
+    : replyTo.type === 'countdown' ? '⏱️ Countdown'
+    : replyTo.type === 'dice' ? '🎲 Dice Roll'
+    : replyTo.type === 'chess-puzzle' ? '♟️ Chess Puzzle'
+    : replyTo.type === 'chess-live' ? '♟️ Chess Live'
+    : replyTo.type === 'uno' ? '🃏 UNO'
+    : replyTo.type === 'poll' ? '📊 Poll'
+    : '📎 Attachment'
   return (
     <div className="reply-quote-line" onClick={onJump}>
       <span className="reply-connector" />
@@ -427,16 +564,24 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
   const [editing, setEditing] = useState(false)
   const [hovered, setHovered] = useState(false)
 
-  // Special message types
+  // Types that never need hover actions
   if (message.type === 'system') return <SystemMessage message={message} />
   if (message.type === 'bot')    return <BotMessage message={message} />
 
-  const isPoll    = message.type === 'poll'
+  const isPoll      = message.type === 'poll'
+  const isChess     = message.type === 'chess'
+  const isChessLive = message.type === 'chess-live'
+  const isUno       = message.type === 'uno'
+  const isAnnounce  = message.type === 'announce'
+  const isCountdown = message.type === 'countdown'
+  const isDice      = message.type === 'dice'
+  const isEmbed     = isAnnounce || isCountdown || isDice
+
   const isOwn     = message.uid === currentUser?.uid
-  const canEdit   = isOwn && !!message.content && !isPoll && message.type !== 'chess'
+  const canEdit   = isOwn && !!message.content && !isPoll && !isEmbed && !isChess
   const canDelete = isOwn || isAdmin(currentUser, null)
 
-  const sameAuthor = !isFirst &&
+  const sameAuthor = !isFirst && !isEmbed &&
     prevMessage?.uid === message.uid &&
     prevMessage?.type !== 'system' &&
     prevMessage?.type !== 'bot' &&
@@ -476,10 +621,6 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
     if (message.uid) openProfile(message.uid)
   }
 
-  const isChess     = message.type === 'chess'
-  const isChessLive = message.type === 'chess-live'
-  const isUno       = message.type === 'uno'
-
   const actions = !editing && hovered && (
     <MessageActions
       message={message}
@@ -507,7 +648,13 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
 
   const body = (
     <>
-      {isPoll ? (
+      {isAnnounce ? (
+        <AnnounceMessage message={message} />
+      ) : isCountdown ? (
+        <CountdownMessage message={message} />
+      ) : isDice ? (
+        <DiceMessage message={message} />
+      ) : isPoll ? (
         <PollMessage message={message} messageRef={messageRef} />
       ) : isChess ? (
         <>
