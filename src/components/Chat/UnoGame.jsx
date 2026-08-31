@@ -166,7 +166,7 @@ export default function UnoGame({ messageRef, initialData }) {
       }
 
       const card = cpuHand[playableIdx]
-      let chosenColor = discardColor
+      let chosenColor = card.color
       if (card.type === 'wild' || card.type === 'wild4') {
         const counts = {}
         cpuHand.forEach(c => { if (c.color !== 'wild') counts[c.color] = (counts[c.color] || 0) + 1 })
@@ -260,7 +260,7 @@ export default function UnoGame({ messageRef, initialData }) {
       setChoosingColor(true)
       return
     }
-    await applyPlayCard(card, cardIndex, discardColor)
+    await applyPlayCard(card, cardIndex, card.color)
   }
 
   async function chooseWildColor(color) {

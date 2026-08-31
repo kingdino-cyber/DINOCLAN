@@ -87,7 +87,8 @@ export default function ChessLive({ messageRef, initialData }) {
   const [localStatus, setLocalStatus] = useState('playing')
   const [showConfetti, setShowConfetti] = useState(false)
   const [animPiece,   setAnimPiece]   = useState(null)
-  const boardRef = useRef(null)
+  const boardRef    = useRef(null)
+  const didMountRef = useRef(false)
 
   useEffect(() => {
     return onSnapshot(messageRef, snap => {
@@ -125,8 +126,9 @@ export default function ChessLive({ messageRef, initialData }) {
     }
   }, [localStatus])
 
-  // Confetti + sounds on game end
+  // Confetti + sounds on game end — skip first render so re-entering a finished game doesn't replay
   useEffect(() => {
+    if (!didMountRef.current) { didMountRef.current = true; return }
     if (game.status !== 'ended') return
     if (iWon) { playCheckmate(); setShowConfetti(true); setTimeout(() => setShowConfetti(false), 4000) }
     if (iLost) playFail()

@@ -43,11 +43,30 @@ function noise(duration, vol = 0.3, startTime = 0) {
   } catch (_) {}
 }
 
-// Kept so existing imports don't break — silent no-ops
 export function playMessageSound() {}
-export function playCallRing() { return () => {} }
-export function playCallEnd() {}
-export function playCallJoin() {}
+
+// Plays a repeating phone-ring pattern; returns a stop() function
+export function playCallRing() {
+  let stopped = false
+  function ring() {
+    if (stopped) return
+    tone(880, 0.15, 'sine', 0.3)
+    tone(660, 0.15, 'sine', 0.25, 0.18)
+    if (!stopped) setTimeout(ring, 1200)
+  }
+  ring()
+  return function stop() { stopped = true }
+}
+
+export function playCallEnd() {
+  tone(440, 0.1, 'sine', 0.2)
+  tone(330, 0.2, 'sine', 0.18, 0.1)
+}
+
+export function playCallJoin() {
+  tone(523, 0.1, 'sine', 0.2)
+  tone(659, 0.12, 'sine', 0.18, 0.08)
+}
 
 // Chess piece placed
 export function playChessMove() {
