@@ -114,6 +114,117 @@ html, body, #root {
   margin-top: 12px;
 }
 
+/* Terms of Service checkbox on register */
+.terms-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 14px;
+  cursor: pointer;
+}
+.terms-checkbox-label input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.terms-checkbox-label a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+/* Terms of Service page */
+.terms-page {
+  min-height: 100vh;
+  height: 100vh;
+  overflow-y: auto;
+  background: var(--bg-primary);
+  display: flex;
+  justify-content: center;
+  padding: 40px 16px;
+}
+.terms-box {
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  padding: 40px 48px;
+  max-width: 720px;
+  width: 100%;
+  color: var(--text-primary);
+  line-height: 1.7;
+}
+.terms-back {
+  display: inline-block;
+  color: var(--accent);
+  font-size: 13px;
+  margin-bottom: 24px;
+  text-decoration: none;
+}
+.terms-back:hover { text-decoration: underline; }
+.terms-box h1 {
+  font-size: 26px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.terms-updated {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-bottom: 28px;
+}
+.terms-box h2 {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 24px 0 8px;
+  color: var(--text-primary);
+}
+.terms-box p, .terms-box ul {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0 0 8px;
+}
+.terms-box ul { padding-left: 20px; }
+.terms-box ul li { margin-bottom: 4px; }
+.terms-copy {
+  margin-top: 32px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* Global copyright badge */
+.global-mobile-toggle {
+  position: fixed;
+  bottom: 30px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  z-index: 9999;
+  background: var(--bg-tertiary);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 20px;
+  padding: 4px 8px 4px 6px;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+.global-mobile-toggle:hover { opacity: 1; }
+.global-mobile-icon { font-size: 13px; line-height: 1; }
+
+.copyright-badge {
+  position: fixed;
+  bottom: 8px;
+  right: 10px;
+  font-size: 10px;
+  color: rgba(255,255,255,0.25);
+  pointer-events: none;
+  z-index: 9999;
+  user-select: none;
+  letter-spacing: 0.02em;
+}
+
 .btn-primary {
   display: block;
   width: 100%;
@@ -145,6 +256,133 @@ html, body, #root {
   display: flex;
   height: 100vh;
   overflow: hidden;
+}
+
+/* ── Mobile mode layout ──────────────────────────────────────────────────── */
+.app-layout-mobile {
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* top bar with back button */
+.mobile-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 46px;
+  min-height: 46px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  padding: 0 12px;
+  z-index: 20;
+  flex-shrink: 0;
+}
+.mobile-back {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 22px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0 6px 0 0;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.mobile-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--header-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+.mobile-dm-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 6px;
+  line-height: 1;
+  flex-shrink: 0;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+.mobile-dm-btn:hover { background: rgba(255,255,255,0.08); }
+
+/* Each panel fills the remaining height */
+.app-layout-mobile .server-sidebar,
+.app-layout-mobile .channel-sidebar,
+.app-layout-mobile .chat-area,
+.app-layout-mobile .friends-panel,
+.app-layout-mobile .home-servers-panel,
+.app-layout-mobile .discover-panel {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  height: calc(100vh - 46px);
+  flex: 1;
+}
+
+/* Server sidebar as a scrollable grid of icons in mobile */
+.app-layout-mobile .server-sidebar {
+  overflow-y: auto;
+  padding: 16px 12px;
+}
+.app-layout-mobile .server-sidebar-scroll {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: flex-start;
+  width: 100%;
+  overflow: visible;
+}
+.app-layout-mobile .server-sidebar .server-icon {
+  width: 56px;
+  height: 56px;
+}
+
+/* ── Mobile toggle on login page ───────────────────────────────────────── */
+.mobile-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 18px;
+  padding: 10px 0 2px;
+  border-top: 1px solid var(--bg-active);
+}
+.mobile-toggle-label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.mobile-toggle-btn {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  background: var(--bg-active);
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.mobile-toggle-btn.active {
+  background: var(--accent);
+}
+.mobile-toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+  display: block;
+}
+.mobile-toggle-btn.active .mobile-toggle-knob {
+  transform: translateX(18px);
 }
 
 /* Server sidebar */

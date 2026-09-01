@@ -27,6 +27,8 @@ export default function MainLayout() {
   const [show67, setShow67]                 = useState(false)
   const [showRawr, setShowRawr]             = useState(false)
   const [showMeteor, setShowMeteor]         = useState(false)
+  const isMobile = localStorage.getItem('dinoclan_mobile') === 'true'
+  const [mobilePanel, setMobilePanel] = useState('servers') // 'servers' | 'channels' | 'chat'
 
   const location = useLocation()
   const navigate = useNavigate()
@@ -145,6 +147,7 @@ export default function MainLayout() {
     setActiveChannelId(null)
     setActiveDmUid(null)
     setShowDiscover(false)
+    if (isMobile) setMobilePanel('channels')
     if (serverId) {
       const snap = await getDocs(
         query(collection(db, 'servers', serverId, 'channels'), orderBy('position', 'asc'))
@@ -163,6 +166,7 @@ export default function MainLayout() {
 
   function handleSelectChannel(channelId) {
     setActiveChannelId(channelId)
+    if (isMobile) setMobilePanel('chat')
     if (activeServerId && channelId) {
       navigate(`/app/server/${activeServerId}/${channelId}`)
     }
@@ -172,6 +176,7 @@ export default function MainLayout() {
     setActiveDmUid(uid)
     setActiveServerId(null)
     setShowDiscover(false)
+    if (isMobile) setMobilePanel('chat')
     navigate(`/app/@me/${uid}`)
   }
 
@@ -179,6 +184,7 @@ export default function MainLayout() {
     setShowDiscover(true)
     setActiveServerId(null)
     setActiveDmUid(null)
+    if (isMobile) setMobilePanel('channels')
     navigate('/app/discover')
   }
 
@@ -189,9 +195,26 @@ export default function MainLayout() {
     if (serverId && channelId) navigate(`/app/server/${serverId}/${channelId}`)
   }
 
+  const mobileTitle = mobilePanel === 'chat'
+    ? (activeDmUid ? '💬 DM' : `# ${activeServer?.name || 'Chat'}`)
+    : mobilePanel === 'channels'
+    ? (activeServer?.name || 'Channels')
+    : '🦕 DINOCLAN'
+
   return (
     <ProfileProvider>
-      <div className="app-layout">
+      <div className={`app-layout${isMobile ? ' app-layout-mobile' : ''}`}>
+        {isMobile && (
+          <div className="mobile-topbar">
+            {mobilePanel !== 'servers' && (
+              <button className="mobile-back" onClick={() => setMobilePanel(mobilePanel === 'chat' ? 'channels' : 'servers')}>←</button>
+            )}
+            <span className="mobile-title">{mobileTitle}</span>
+            {mobilePanel === 'servers' && (
+              <button className="mobile-dm-btn" title="Direct Messages" onClick={() => { setActiveServerId(null); setActiveDmUid(null); setShowDiscover(false); setMobilePanel('chat') }}>💬</button>
+            )}
+          </div>
+        )}
         {show67 && (
           <div className="overlay-67" onClick={() => setShow67(false)}>
             <span className="overlay-67-text">67</span>
@@ -230,39 +253,35 @@ export default function MainLayout() {
           onNavigateToServer={handleNavigateToServer}
         />
 
-        <ServerSidebar
-          activeServerId={activeServerId}
-          onSelectServer={handleSelectServer}
-          discoverActive={showDiscover}
-          onOpenDiscover={handleOpenDiscover}
-        />
+        {/* Server sidebar — always shown on desktop; only on 'servers' panel on mobile */}
+        {(!isMobile || mobilePanel === 'servers') && (
+          <ServerSidebar
+            activeServerId={activeServerId}
+            onSelectServer={handleSelectServer}
+            discoverActive={showDiscover}
+            onOpenDiscover={handleOpenDiscover}
+          />
+        )}
 
         {showDiscover ? (
-          <DiscoverPanel onSelectServer={handleSelectServer} />
+          (!isMobile || mobilePanel === 'channels') && <DiscoverPanel onSelectServer={handleSelectServer} />
         ) : !activeServerId ? (
           <>
-            <HomeServersPanel onSelectServer={handleSelectServer} />
-            {activeDmUid ? (
-              <DirectMessageView
-                otherUid={activeDmUid}
-                onClose={() => { setActiveDmUid(null); navigate('/app') }}
-              />
-            ) : (
-              <FriendsPanel onStartDM={handleStartDM} />
+            {(!isMobile || mobilePanel === 'channels') && <HomeServersPanel onSelectServer={handleSelectServer} />}
+            {(!isMobile || mobilePanel === 'chat') && (
+              activeDmUid
+                ? <DirectMessageView otherUid={activeDmUid} onClose={() => { setActiveDmUid(null); setMobilePanel('servers'); navigate('/app') }} />
+                : <FriendsPanel onStartDM={handleStartDM} />
             )}
           </>
         ) : (
           <>
-            <ChannelSidebar
-              server={activeServer}
-              activeChannelId={activeChannelId}
-              onSelectChannel={handleSelectChannel}
-            />
-            <ChatArea
-              server={activeServer}
-              channelId={activeChannelId}
-              onStartDM={handleStartDM}
-            />
+            {(!isMobile || mobilePanel === 'channels') && (
+              <ChannelSidebar server={activeServer} activeChannelId={activeChannelId} onSelectChannel={handleSelectChannel} />
+            )}
+            {(!isMobile || mobilePanel === 'chat') && (
+              <ChatArea server={activeServer} channelId={activeChannelId} onStartDM={handleStartDM} />
+            )}
           </>
         )}
       </div>
