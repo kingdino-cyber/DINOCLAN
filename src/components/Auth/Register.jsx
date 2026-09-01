@@ -11,6 +11,7 @@ export default function Register() {
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [agreedToTerms, setAgreedToTerms] = useState(false)
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -18,6 +19,7 @@ export default function Register() {
     if (password !== confirm) { setError('Passwords do not match.'); return }
     if (password.length < 6) { setError('Password must be at least 6 characters.'); return }
     if (!displayName.trim()) { setError('Please enter a display name.'); return }
+    if (!agreedToTerms) { setError('You must agree to the Terms of Service to continue.'); return }
     setLoading(true)
     try {
       await register(email, password, displayName.trim())
@@ -69,6 +71,15 @@ export default function Register() {
             placeholder="Confirm your password"
             required
           />
+          <label className="terms-checkbox-label">
+            <input
+              type="checkbox"
+              checked={agreedToTerms}
+              onChange={e => setAgreedToTerms(e.target.checked)}
+            />
+            I agree to the{' '}
+            <Link to="/terms" target="_blank" rel="noopener noreferrer">Terms of Service</Link>
+          </label>
           {error && <div className="auth-error">{error}</div>}
           <button className="btn-primary" type="submit" disabled={loading}>
             {loading ? 'Creating account…' : 'Continue'}

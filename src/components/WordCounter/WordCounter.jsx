@@ -317,12 +317,12 @@ export default function WordCounter() {
         display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center',
         maxWidth: 720, width: '100%', marginBottom: 24,
       }}>
-        <StatCard label="Words" value={stats.words} emoji="📝" />
-        <StatCard label="Characters" value={stats.chars} emoji="🔤" />
-        <StatCard label="No Spaces" value={stats.charsNoSpaces} emoji="✂️" />
-        <StatCard label="Sentences" value={stats.sentences} emoji="💬" />
-        <StatCard label="Paragraphs" value={stats.paragraphs} emoji="📄" />
-        <StatCard label="Min Read" value={stats.readTime} emoji="⏱️" />
+        <StatCard label="Words"      value={stats.words}         emoji="📝" />
+        <StatCard label="Characters" value={stats.chars}          emoji="🔤" />
+        <StatCard label="No Spaces"  value={stats.charsNoSpaces} emoji="✂️" />
+        <StatCard label="Sentences"  value={stats.sentences}      emoji="💬" />
+        <StatCard label="Paragraphs" value={stats.paragraphs}     emoji="📄" />
+        <StatCard label="Min Read"   value={stats.readTime}       emoji="⏱️" />
       </div>
 
       {/* Textarea */}
