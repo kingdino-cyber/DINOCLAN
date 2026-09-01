@@ -322,6 +322,8 @@ html, body, #root {
   min-width: 0 !important;
   max-width: 100% !important;
   height: calc(100vh - 46px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   flex: 1;
 }
 
