@@ -31,15 +31,12 @@
   to   { opacity: 1; transform: translateX(0);    }
 }
 
-html, body {
+html, body, #root {
   height: 100%;
   font-family: 'gg sans', 'Noto Sans', Whitney, 'Helvetica Neue', Helvetica, Roboto, Arial, sans-serif;
   font-size: 16px;
   color: var(--text-normal);
   background: var(--bg-primary);
-}
-#root {
-  height: 100%;
   overflow: hidden;
 }
 
@@ -196,26 +193,6 @@ html, body {
   text-align: center;
 }
 
-/* Global copyright badge */
-.global-mobile-toggle {
-  position: fixed;
-  bottom: 30px;
-  right: 10px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  z-index: 9999;
-  background: var(--bg-tertiary);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 20px;
-  padding: 4px 8px 4px 6px;
-  opacity: 0.7;
-  transition: opacity 0.15s;
-}
-.global-mobile-toggle:hover { opacity: 1; }
-.global-mobile-icon { font-size: 13px; line-height: 1; }
-
 .copyright-badge {
   position: fixed;
   bottom: 8px;
@@ -261,126 +238,6 @@ html, body {
   overflow: hidden;
 }
 
-/* ── Mobile mode layout (Discord-style bottom tabs) ─────────────────────── */
-.app-layout-mobile {
-  flex-direction: column;
-  height: 100dvh;
-}
-
-.mobile-content {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-/* All panels inside mobile-content fill the space and scroll */
-.mobile-content > * {
-  flex: 1 !important;
-  width: 100% !important;
-  max-width: 100% !important;
-  min-width: 0 !important;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* Chat area manages its own scroll internally — don't override */
-.mobile-content .chat-area {
-  overflow: hidden !important;
-}
-
-/* Server grid layout in mobile */
-.mobile-content .server-sidebar {
-  padding: 20px 16px;
-}
-.mobile-content .server-sidebar-scroll {
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 16px;
-  justify-content: flex-start;
-  height: auto;
-}
-.mobile-content .server-sidebar .server-icon {
-  width: 64px;
-  height: 64px;
-}
-
-/* Bottom navigation bar */
-.mobile-bottom-bar {
-  height: 60px;
-  min-height: 60px;
-  padding-bottom: env(safe-area-inset-bottom);
-  background: var(--bg-tertiary);
-  border-top: 1px solid rgba(255,255,255,0.07);
-  display: flex;
-  align-items: stretch;
-  flex-shrink: 0;
-}
-.mobile-tab-btn {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  gap: 3px;
-  cursor: pointer;
-  transition: color 0.15s;
-  -webkit-tap-highlight-color: transparent;
-}
-.mobile-tab-btn.active { color: var(--accent); }
-.mobile-tab-icon { font-size: 22px; line-height: 1; }
-.mobile-tab-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-/* ── Mobile toggle on login page ───────────────────────────────────────── */
-.mobile-toggle-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 18px;
-  padding: 10px 0 2px;
-  border-top: 1px solid var(--bg-active);
-}
-.mobile-toggle-label {
-  font-size: 13px;
-  color: var(--text-muted);
-}
-.mobile-toggle-btn {
-  position: relative;
-  width: 42px;
-  height: 24px;
-  background: var(--bg-active);
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: background 0.2s;
-  flex-shrink: 0;
-}
-.mobile-toggle-btn.active {
-  background: var(--accent);
-}
-.mobile-toggle-knob {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 18px;
-  height: 18px;
-  background: #fff;
-  border-radius: 50%;
-  transition: transform 0.2s;
-  display: block;
-}
-.mobile-toggle-btn.active .mobile-toggle-knob {
-  transform: translateX(18px);
-}
 
 /* Server sidebar */
 .server-sidebar {

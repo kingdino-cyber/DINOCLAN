@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { CallProvider } from './contexts/CallContext'
@@ -19,24 +18,6 @@ function PublicRoute({ children }) {
   return !currentUser ? children : <Navigate to="/app" replace />
 }
 
-function MobileToggle() {
-  const [mobile, setMobile] = useState(() => localStorage.getItem('dinoclan_mobile') === 'true')
-  function toggle() {
-    const next = !mobile
-    setMobile(next)
-    localStorage.setItem('dinoclan_mobile', String(next))
-    window.location.reload()
-  }
-  return (
-    <div className="global-mobile-toggle" onClick={toggle} title={mobile ? 'Disable mobile mode' : 'Enable mobile mode'}>
-      <span className="global-mobile-icon">📱</span>
-      <div className={`mobile-toggle-btn${mobile ? ' active' : ''}`}>
-        <span className="mobile-toggle-knob" />
-      </div>
-    </div>
-  )
-}
-
 export default function App() {
   return (
     <AuthProvider>
@@ -50,7 +31,6 @@ export default function App() {
             <Route path="/terms"        element={<Terms />} />
             <Route path="/app/*"        element={<PrivateRoute><MainLayout /></PrivateRoute>} />
           </Routes>
-          <MobileToggle />
           <div className="copyright-badge">© 2026 DINOCLAN. All rights reserved.</div>
         </CallProvider>
       </BrowserRouter>
