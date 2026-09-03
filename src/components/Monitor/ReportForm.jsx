@@ -44,10 +44,11 @@ export default function ReportForm({ onClose }) {
     try {
       let evidenceUrl = null
       try {
+        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
         const storageRef = ref(storage, `reports/${Date.now()}_${file.name}`)
-        await uploadBytes(storageRef, file)
+        await Promise.race([uploadBytes(storageRef, file), timeout])
         evidenceUrl = await getDownloadURL(storageRef)
-      } catch { /* upload failed (CORS) — report still submits */ }
+      } catch { /* upload failed or timed out — report still submits */ }
 
       const monitorSnap = await getDocs(collection(db, 'monitors'))
       const monitors = monitorSnap.docs
