@@ -50,6 +50,8 @@ function AdminPanel({ monitorDocs, pendingReports, setShowMonitorPanel, onStartD
   const [suspendLoading, setSuspendLoading] = useState(false)
   const [lightboxUrl, setLightboxUrl]   = useState(null)
   const [tab, setTab]                   = useState('reports')
+  const [quizState, setQuizState]       = useState({}) // reportId → question text
+  const [quizOpen, setQuizOpen]         = useState({}) // reportId → bool
 
   async function handleChatWith(report) {
     await updateDoc(doc(db, 'reports', report.id), { status: 'in_progress' })
@@ -63,6 +65,26 @@ function AdminPanel({ monitorDocs, pendingReports, setShowMonitorPanel, onStartD
     })
     setShowMonitorPanel(false)
     onStartDM(report.reporterUid)
+  }
+
+  async function handleMarkDone(report) {
+    await updateDoc(doc(db, 'reports', report.id), { status: 'resolved' })
+  }
+
+  async function handleSendQuestion(report) {
+    const q = (quizState[report.id] || '').trim()
+    if (!q) return
+    await addDoc(collection(db, 'notifications'), {
+      toUid: report.reporterUid,
+      fromUid: currentUser.uid,
+      fromName: currentUser.displayName || currentUser.email,
+      type: 'monitor_question',
+      question: q,
+      read: false,
+      createdAt: serverTimestamp(),
+    })
+    setQuizState(s => ({ ...s, [report.id]: '' }))
+    setQuizOpen(s => ({ ...s, [report.id]: false }))
   }
 
   async function handleSuspend() {
@@ -175,6 +197,38 @@ function AdminPanel({ monitorDocs, pendingReports, setShowMonitorPanel, onStartD
         .mp-suspend-btn:not(:disabled):hover { opacity:0.85; }
         .mp-status-ok { color:var(--success); font-size:13px; margin:10px 0 0; }
         .mp-status-err { color:var(--danger); font-size:13px; margin:10px 0 0; }
+        .mp-done-btn {
+          display:inline-flex; align-items:center; gap:6px;
+          padding:7px 16px; border-radius:8px; border:none;
+          background:color-mix(in srgb,var(--success,#3ba55c) 18%,transparent);
+          color:var(--success,#3ba55c); font-size:12px; font-weight:700;
+          cursor:pointer; transition:background 0.15s;
+          border:1px solid color-mix(in srgb,var(--success,#3ba55c) 35%,transparent);
+        }
+        .mp-done-btn:hover { background:color-mix(in srgb,var(--success,#3ba55c) 28%,transparent); }
+        .mp-quiz-btn {
+          display:inline-flex; align-items:center; gap:6px;
+          padding:7px 16px; border-radius:8px;
+          border:1.5px solid rgba(255,255,255,0.1);
+          background:none; color:var(--text-muted); font-size:12px; font-weight:700;
+          cursor:pointer; transition:background 0.15s, color 0.15s;
+        }
+        .mp-quiz-btn:hover { background:rgba(255,255,255,0.06); color:var(--text-normal); }
+        .mp-quiz-input-row { display:flex; gap:8px; margin-top:10px; }
+        .mp-quiz-input {
+          flex:1; background:var(--bg-primary); border:1.5px solid rgba(255,255,255,0.08);
+          border-radius:8px; padding:8px 12px; color:var(--text-normal);
+          font-size:13px; font-family:inherit; outline:none;
+          transition:border-color 0.2s;
+        }
+        .mp-quiz-input:focus { border-color:var(--accent); }
+        .mp-quiz-send {
+          padding:8px 16px; border-radius:8px; border:none;
+          background:var(--accent); color:#fff; font-size:12px; font-weight:700;
+          cursor:pointer; transition:opacity 0.15s;
+        }
+        .mp-quiz-send:disabled { opacity:0.4; cursor:not-allowed; }
+        .mp-quiz-send:not(:disabled):hover { opacity:0.85; }
         .mp-lightbox {
           position:fixed; inset:0; z-index:9999;
           background:rgba(0,0,0,0.92);
@@ -257,7 +311,29 @@ function AdminPanel({ monitorDocs, pendingReports, setShowMonitorPanel, onStartD
                       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                       Chat
                     </button>
+                    <button className="mp-quiz-btn" onClick={()=>setQuizOpen(s=>({...s,[r.id]:!s[r.id]}))}>
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                      Ask Question
+                    </button>
+                    <button className="mp-done-btn" onClick={()=>handleMarkDone(r)}>
+                      ✓ Done
+                    </button>
                   </div>
+                  {quizOpen[r.id] && (
+                    <div className="mp-quiz-input-row">
+                      <input
+                        className="mp-quiz-input"
+                        placeholder="Type your question for the reporter…"
+                        value={quizState[r.id] || ''}
+                        onChange={e=>setQuizState(s=>({...s,[r.id]:e.target.value}))}
+                        onKeyDown={e=>e.key==='Enter'&&handleSendQuestion(r)}
+                        autoFocus
+                      />
+                      <button className="mp-quiz-send" onClick={()=>handleSendQuestion(r)} disabled={!(quizState[r.id]||'').trim()}>
+                        Send
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -346,6 +422,8 @@ function MonitorView({ pendingReports, setShowMonitorPanel, onStartDM }) {
   const [suspendDays, setSuspendDays]   = useState(1)
   const [suspendStatus, setSuspendStatus] = useState('')
   const [suspendLoading, setSuspendLoading] = useState(false)
+  const [quizState, setQuizState]       = useState({})
+  const [quizOpen, setQuizOpen]         = useState({})
 
   async function handleChatWith(report) {
     await updateDoc(doc(db, 'reports', report.id), { status: 'in_progress' })
@@ -359,6 +437,26 @@ function MonitorView({ pendingReports, setShowMonitorPanel, onStartDM }) {
     })
     setShowMonitorPanel(false)
     onStartDM(report.reporterUid)
+  }
+
+  async function handleMarkDone(report) {
+    await updateDoc(doc(db, 'reports', report.id), { status: 'resolved' })
+  }
+
+  async function handleSendQuestion(report) {
+    const q = (quizState[report.id] || '').trim()
+    if (!q) return
+    await addDoc(collection(db, 'notifications'), {
+      toUid: report.reporterUid,
+      fromUid: currentUser.uid,
+      fromName: currentUser.displayName || currentUser.email,
+      type: 'monitor_question',
+      question: q,
+      read: false,
+      createdAt: serverTimestamp(),
+    })
+    setQuizState(s => ({ ...s, [report.id]: '' }))
+    setQuizOpen(s => ({ ...s, [report.id]: false }))
   }
 
   async function handleSuspend() {
@@ -451,6 +549,37 @@ function MonitorView({ pendingReports, setShowMonitorPanel, onStartDM }) {
         }
         .mp-suspend-title { font-size:14px; font-weight:700; color:var(--header-primary); margin:0 0 6px; }
         .mp-suspend-desc2 { color:var(--text-muted); font-size:13px; line-height:1.5; margin:0 0 18px; }
+        .mp-done-btn {
+          display:inline-flex; align-items:center; gap:6px;
+          padding:9px 18px; border-radius:9px; border:none;
+          background:color-mix(in srgb,var(--success,#3ba55c) 18%,transparent);
+          color:var(--success,#3ba55c); font-size:13px; font-weight:700;
+          cursor:pointer; transition:background 0.15s;
+          border:1px solid color-mix(in srgb,var(--success,#3ba55c) 35%,transparent);
+        }
+        .mp-done-btn:hover { background:color-mix(in srgb,var(--success,#3ba55c) 28%,transparent); }
+        .mp-quiz-btn {
+          display:inline-flex; align-items:center; gap:7px;
+          padding:9px 18px; border-radius:9px;
+          border:1.5px solid rgba(255,255,255,0.1);
+          background:none; color:var(--text-muted); font-size:13px; font-weight:700;
+          cursor:pointer; transition:background 0.15s, color 0.15s;
+        }
+        .mp-quiz-btn:hover { background:rgba(255,255,255,0.06); color:var(--text-normal); }
+        .mp-quiz-input-row { display:flex; gap:8px; margin-top:12px; }
+        .mp-quiz-input {
+          flex:1; background:var(--bg-primary); border:1.5px solid rgba(255,255,255,0.08);
+          border-radius:8px; padding:9px 12px; color:var(--text-normal);
+          font-size:13px; font-family:inherit; outline:none; transition:border-color 0.2s;
+        }
+        .mp-quiz-input:focus { border-color:var(--accent); }
+        .mp-quiz-send {
+          padding:9px 18px; border-radius:8px; border:none;
+          background:var(--accent); color:#fff; font-size:13px; font-weight:700;
+          cursor:pointer; transition:opacity 0.15s;
+        }
+        .mp-quiz-send:disabled { opacity:0.4; cursor:not-allowed; }
+        .mp-quiz-send:not(:disabled):hover { opacity:0.85; }
       `}</style>
 
       {lightboxUrl && (
@@ -526,7 +655,29 @@ function MonitorView({ pendingReports, setShowMonitorPanel, onStartDM }) {
                     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                     Open Chat
                   </button>
+                  <button className="mp-quiz-btn" onClick={()=>setQuizOpen(s=>({...s,[r.id]:!s[r.id]}))}>
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    Ask Question
+                  </button>
+                  <button className="mp-done-btn" onClick={()=>handleMarkDone(r)}>
+                    ✓ Done
+                  </button>
                 </div>
+                {quizOpen[r.id] && (
+                  <div className="mp-quiz-input-row">
+                    <input
+                      className="mp-quiz-input"
+                      placeholder="Type your question for the reporter…"
+                      value={quizState[r.id] || ''}
+                      onChange={e=>setQuizState(s=>({...s,[r.id]:e.target.value}))}
+                      onKeyDown={e=>e.key==='Enter'&&handleSendQuestion(r)}
+                      autoFocus
+                    />
+                    <button className="mp-quiz-send" onClick={()=>handleSendQuestion(r)} disabled={!(quizState[r.id]||'').trim()}>
+                      Send
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

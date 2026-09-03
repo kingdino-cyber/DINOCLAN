@@ -13,7 +13,7 @@ export default function MonitorNotification({ onOpenDM }) {
       collection(db, 'notifications'),
       where('toUid', '==', currentUser.uid),
       where('read', '==', false),
-      where('type', '==', 'monitor_dm')
+      where('type', 'in', ['monitor_dm', 'monitor_question'])
     )
     const unsub = onSnapshot(q, snap => {
       const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
@@ -82,21 +82,31 @@ export default function MonitorNotification({ onOpenDM }) {
       <div className="mn-banner">
         <div className="mn-header">
           <div className="mn-icon">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
-            </svg>
+            {notif.type === 'monitor_question' ? (
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+              </svg>
+            )}
           </div>
           <div>
-            <div className="mn-title">Monitor is ready</div>
-            <div className="mn-sub">{notif.fromName} wants to help</div>
+            <div className="mn-title">{notif.type === 'monitor_question' ? 'Monitor has a question' : 'Monitor is ready'}</div>
+            <div className="mn-sub">{notif.fromName}</div>
           </div>
         </div>
         <p className="mn-body">
-          A community monitor has picked up your report and is ready to chat with you privately.
+          {notif.type === 'monitor_question'
+            ? `"${notif.question}"`
+            : 'A community monitor has picked up your report and is ready to chat with you privately.'}
         </p>
         <div className="mn-actions">
-          <button className="mn-btn-chat" onClick={handleChat}>Chat Now</button>
-          <button className="mn-btn-dismiss" onClick={handleDismiss}>Later</button>
+          <button className="mn-btn-chat" onClick={handleChat}>
+            {notif.type === 'monitor_question' ? 'Reply in DM' : 'Chat Now'}
+          </button>
+          <button className="mn-btn-dismiss" onClick={handleDismiss}>Dismiss</button>
         </div>
       </div>
     </>
