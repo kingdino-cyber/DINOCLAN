@@ -247,10 +247,10 @@ function AdminPanel({ monitorDocs, pendingReports, setShowMonitorPanel, onStartD
                   </div>
                   <p className="mp-report-desc">{r.description}</p>
                   <div style={{display:'flex',gap:12,alignItems:'flex-end',flexWrap:'wrap'}}>
-                    {r.evidenceUrl && (
-                      <img src={r.evidenceUrl} alt="evidence"
+                    {r.evidenceBase64 && (
+                      <img src={r.evidenceBase64} alt="evidence"
                         style={{maxWidth:160,maxHeight:110,borderRadius:8,objectFit:'cover',cursor:'zoom-in',border:'1px solid rgba(255,255,255,0.1)'}}
-                        onClick={()=>setLightboxUrl(r.evidenceUrl)}
+                        onClick={()=>setLightboxUrl(r.evidenceBase64)}
                       />
                     )}
                     <button className="mp-chat-btn" onClick={()=>handleChatWith(r)}>
@@ -516,10 +516,10 @@ function MonitorView({ pendingReports, setShowMonitorPanel, onStartDM }) {
                 </div>
                 <p className="mp-monitor-desc">{r.description}</p>
                 <div className="mp-monitor-actions">
-                  {r.evidenceUrl && (
-                    <img src={r.evidenceUrl} alt="evidence"
+                  {r.evidenceBase64 && (
+                    <img src={r.evidenceBase64} alt="evidence"
                       style={{maxWidth:140,maxHeight:100,borderRadius:8,objectFit:'cover',cursor:'zoom-in',border:'1px solid rgba(255,255,255,0.1)'}}
-                      onClick={()=>setLightboxUrl(r.evidenceUrl)}
+                      onClick={()=>setLightboxUrl(r.evidenceBase64)}
                     />
                   )}
                   <button className="mp-monitor-chat-btn" onClick={()=>handleChatWith(r)}>

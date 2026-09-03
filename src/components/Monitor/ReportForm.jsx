@@ -1,8 +1,26 @@
 import { useState } from 'react'
 import { collection, getDocs, getDoc, doc, addDoc, serverTimestamp } from 'firebase/firestore'
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { db, storage } from '../../firebase'
+import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
+
+function compressImage(file, maxPx = 900, quality = 0.72) {
+  return new Promise(resolve => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      const scale = Math.min(1, maxPx / Math.max(img.width, img.height))
+      const w = Math.round(img.width * scale)
+      const h = Math.round(img.height * scale)
+      const canvas = document.createElement('canvas')
+      canvas.width = w; canvas.height = h
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h)
+      resolve(canvas.toDataURL('image/jpeg', quality))
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null) }
+    img.src = url
+  })
+}
 
 const ADMIN_EMAIL = 'bohlehsaurus7@gmail.com'
 
@@ -42,13 +60,7 @@ export default function ReportForm({ onClose }) {
     setLoading(true)
     setError('')
     try {
-      let evidenceUrl = null
-      try {
-        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
-        const storageRef = ref(storage, `reports/${Date.now()}_${file.name}`)
-        await Promise.race([uploadBytes(storageRef, file), timeout])
-        evidenceUrl = await getDownloadURL(storageRef)
-      } catch { /* upload failed or timed out — report still submits */ }
+      const evidenceBase64 = file ? await compressImage(file) : null
 
       const monitorSnap = await getDocs(collection(db, 'monitors'))
       const monitors = monitorSnap.docs
@@ -71,7 +83,7 @@ export default function ReportForm({ onClose }) {
         reporterUid: currentUser.uid,
         reporterName: currentUser.displayName || currentUser.email,
         description: description.trim(),
-        evidenceUrl,
+        evidenceBase64,
         assignedMonitorUid: chosen.uid,
         status: 'pending',
         createdAt: serverTimestamp(),
