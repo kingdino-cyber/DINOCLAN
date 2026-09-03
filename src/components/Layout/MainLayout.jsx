@@ -16,9 +16,20 @@ import CallUI from '../Call/CallUI'
 import IncomingCallBanner from '../Call/IncomingCallBanner'
 import UserProfileModal from '../Modals/UserProfileModal'
 import NotificationToast from '../NotificationToast'
+import HelpButton from '../Monitor/HelpButton'
+import MonitorPanel from '../Monitor/MonitorPanel'
+import { useMonitor } from '../../contexts/MonitorContext'
 
 export default function MainLayout() {
   const { currentUser } = useAuth()
+  const { showMonitorPanel, setShowMonitorPanel } = useMonitor()
+
+  useEffect(() => {
+    if (showMonitorPanel) {
+      setShowDiscover(false)
+      navigate('/app/monitor', { replace: true })
+    }
+  }, [showMonitorPanel]) // eslint-disable-line react-hooks/exhaustive-deps
   const [activeServerId, setActiveServerId] = useState(null)
   const [activeServer, setActiveServer]     = useState(null)
   const [activeChannelId, setActiveChannelId] = useState(null)
@@ -103,6 +114,25 @@ const location = useLocation()
     }
   }, [location.pathname, location.state, currentUser?.uid]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Watch channels — if the active channel gets deleted, jump to another one
+  useEffect(() => {
+    if (!activeServerId || !activeChannelId) return
+    const unsub = onSnapshot(
+      query(collection(db, 'servers', activeServerId, 'channels'), orderBy('position', 'asc')),
+      snap => {
+        const ids = snap.docs.map(d => d.id)
+        if (ids.length === 0) return
+        if (!ids.includes(activeChannelId)) {
+          const fallback = snap.docs[0]
+          setActiveChannelId(fallback.id)
+          navigate(`/app/server/${activeServerId}/${fallback.id}`, { replace: true })
+        }
+      },
+      () => {}
+    )
+    return unsub
+  }, [activeServerId, activeChannelId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const lastEventRef = useRef(null)
   useEffect(() => {
     if (!activeServerId) { setActiveServer(null); setActiveChannelId(null); return }
@@ -144,6 +174,7 @@ const location = useLocation()
     setActiveChannelId(null)
     setActiveDmUid(null)
     setShowDiscover(false)
+    setShowMonitorPanel(false)
     if (serverId) {
       const snap = await getDocs(
         query(collection(db, 'servers', serverId, 'channels'), orderBy('position', 'asc'))
@@ -171,6 +202,7 @@ const location = useLocation()
     setActiveDmUid(uid)
     setActiveServerId(null)
     setShowDiscover(false)
+    setShowMonitorPanel(false)
     navigate(`/app/@me/${uid}`)
   }
 
@@ -178,6 +210,7 @@ const location = useLocation()
     setShowDiscover(true)
     setActiveServerId(null)
     setActiveDmUid(null)
+    setShowMonitorPanel(false)
     navigate('/app/discover')
   }
 
@@ -190,6 +223,7 @@ const location = useLocation()
 
   return (
     <ProfileProvider>
+      <HelpButton />
       <div className="app-layout">
         {show67 && (
           <div className="overlay-67" onClick={() => setShow67(false)}>
@@ -231,7 +265,9 @@ const location = useLocation()
           discoverActive={showDiscover}
           onOpenDiscover={handleOpenDiscover}
         />
-        {showDiscover ? (
+        {showMonitorPanel ? (
+          <MonitorPanel onStartDM={handleStartDM} />
+        ) : showDiscover ? (
           <DiscoverPanel onSelectServer={handleSelectServer} />
         ) : !activeServerId ? (
           <>

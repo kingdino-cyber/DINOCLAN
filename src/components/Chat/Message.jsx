@@ -5,6 +5,7 @@ import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useProfile } from '../../contexts/ProfileContext'
 import { isAdmin, SERVER_RANK_TAGS, GLOBAL_RANK_TAGS } from '../../utils/admin'
+import { useMonitor } from '../../contexts/MonitorContext'
 import Avatar from './Avatar'
 import ChessPuzzle from './ChessPuzzle'
 import ChessLive from './ChessLive'
@@ -561,6 +562,7 @@ function ReplyQuote({ replyTo, onJump }) {
 export default function Message({ message, isFirst, prevMessage, serverId, channelId, onReply }) {
   const { currentUser } = useAuth()
   const { openProfile } = useProfile()
+  const { monitorUids } = useMonitor()
   const [editing, setEditing] = useState(false)
   const [hovered, setHovered] = useState(false)
 
@@ -748,6 +750,9 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
           <div className="msg-header">
             {serverRankTag}
             {globalRankTag}
+            {monitorUids.has(message.uid) && (
+              <span className="monitor-mark" title="Monitor">'</span>
+            )}
             <span
               className="msg-author"
               style={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}

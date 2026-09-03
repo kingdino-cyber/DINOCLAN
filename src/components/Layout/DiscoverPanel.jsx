@@ -71,7 +71,17 @@ export default function DiscoverPanel({ onSelectServer }) {
   return (
     <div className="discover-panel">
       <div className="home-servers-header">
-        <span style={{ fontSize: 20 }}>🧭</span>
+        <div style={{
+          width: 32, height: 32, borderRadius: '50%',
+          background: '#1e1f22',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="9.25"/>
+            <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" fill="#fff" stroke="none"/>
+          </svg>
+        </div>
         <h2>Discover</h2>
       </div>
 

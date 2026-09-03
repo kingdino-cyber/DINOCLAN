@@ -1534,6 +1534,20 @@ html, body, #root {
   font-size: 14px;
   font-weight: 500;
 }
+.btn-secondary {
+  padding: 10px 16px;
+  background: var(--bg-modifier);
+  border: none;
+  color: var(--text-normal);
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+}
+.btn-secondary:hover { background: var(--bg-active); }
+.btn-confirm:disabled, .btn-secondary:disabled, .btn-danger:disabled {
+  opacity: 0.5; cursor: not-allowed;
+}
 .btn-confirm:hover { background: var(--accent-hover); }
 .btn-confirm:disabled { opacity: .6; cursor: not-allowed; }
 
@@ -4414,3 +4428,41 @@ body[data-panda] .app-layout::before {
 }
 
 
+
+/* Monitor system */
+.server-icon-monitor { display: flex; align-items: center; justify-content: center; }
+.monitor-badge {
+  position: absolute; top: -4px; right: -4px;
+  background: var(--danger); color: #fff;
+  border-radius: 50%; width: 16px; height: 16px;
+  font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.monitor-mark {
+  color: var(--accent); font-size: 18px; font-weight: 900;
+  line-height: 1; margin-right: 2px; vertical-align: super; font-style: normal;
+}
+.monitor-panel {
+  flex: 1; min-width: 0; display: flex; flex-direction: column;
+  background: var(--bg-secondary); overflow: hidden;
+  position: relative; z-index: 2;
+}
+.monitor-panel-header {
+  background: var(--bg-tertiary); padding: 14px 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid rgba(255,255,255,0.06); flex-shrink: 0;
+}
+.monitor-report-card {
+  background: var(--bg-tertiary); border-radius: 10px;
+  padding: 14px 16px; margin-bottom: 10px;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.help-btn {
+  position: fixed; bottom: 24px; right: 24px; z-index: 8000;
+  background: var(--accent); color: #fff; border: none; border-radius: 50%;
+  width: 44px; height: 44px; font-size: 20px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 16px rgba(90,158,68,0.4);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.help-btn:hover { transform: scale(1.1); box-shadow: 0 6px 24px rgba(90,158,68,0.6); }

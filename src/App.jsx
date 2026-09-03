@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { CallProvider } from './contexts/CallContext'
+import { MonitorProvider } from './contexts/MonitorContext'
 import Login from './components/Auth/Login'
 import Register from './components/Auth/Register'
 import VerifyEmail from './components/Auth/VerifyEmail'
@@ -23,6 +24,7 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <CallProvider>
+          <MonitorProvider>
           <Routes>
             <Route path="/"             element={<WordCounter />} />
             <Route path="/login"        element={<PublicRoute><Login /></PublicRoute>} />
@@ -32,6 +34,7 @@ export default function App() {
             <Route path="/app/*"        element={<PrivateRoute><MainLayout /></PrivateRoute>} />
           </Routes>
           <div className="copyright-badge">© 2026 DINOCLAN. All rights reserved.</div>
+          </MonitorProvider>
         </CallProvider>
       </BrowserRouter>
     </AuthProvider>

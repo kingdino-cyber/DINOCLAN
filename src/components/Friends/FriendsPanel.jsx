@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react'
 import {
   collection, query, where, onSnapshot, addDoc,
   updateDoc, doc, serverTimestamp, getDocs, getDoc, arrayUnion, arrayRemove,
+  setDoc, deleteDoc,
 } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import { isOperator, getGlobalRank, GLOBAL_RANK_TAGS } from '../../utils/admin'
+import { useMonitor } from '../../contexts/MonitorContext'
 import Avatar from '../Chat/Avatar'
 
 /* ── Helpers ── */
@@ -183,7 +185,14 @@ export default function FriendsPanel({ onStartDM }) {
   const [rankLoading, setRankLoading]   = useState(false)
   const [rankSaving, setRankSaving]     = useState(false)
 
+  // monitors tab state (admin only)
+  const [monitorEmail, setMonitorEmail]           = useState('')
+  const [monitorSearchResult, setMonitorSearchResult] = useState(null)
+  const [monitorStatus, setMonitorStatus]         = useState('')
+  const [monitorLoading, setMonitorLoading]       = useState(false)
+
   const isGlobalAdmin = isOperator(currentUser)
+  const { monitorUids, monitorDocs } = useMonitor()
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'users', currentUser.uid), snap => {
@@ -393,6 +402,55 @@ export default function FriendsPanel({ onStartDM }) {
     }
   }
 
+  async function searchMonitorUser() {
+    const email = monitorEmail.trim().toLowerCase()
+    if (!email) return
+    setMonitorLoading(true)
+    setMonitorSearchResult(null)
+    setMonitorStatus('')
+    try {
+      const snap = await getDocs(query(collection(db, 'users'), where('email', '==', email)))
+      if (snap.empty) {
+        setMonitorStatus('No user found with that email.')
+      } else {
+        const d = snap.docs[0]
+        setMonitorSearchResult({ uid: d.id, ...d.data() })
+      }
+    } catch {
+      setMonitorStatus('Search failed. Try again.')
+    } finally {
+      setMonitorLoading(false)
+    }
+  }
+
+  async function addMonitor(user) {
+    if (user.email === 'bohlehsaurus7@gmail.com') {
+      setMonitorStatus('❌ Admin cannot be assigned as a monitor.')
+      return
+    }
+    try {
+      await setDoc(doc(db, 'monitors', user.uid), {
+        email: user.email,
+        displayName: user.displayName || '',
+        assignedAt: serverTimestamp(),
+      })
+      setMonitorStatus(`✅ ${user.displayName || user.email} is now a monitor!`)
+      setMonitorSearchResult(null)
+      setMonitorEmail('')
+      setTimeout(() => setMonitorStatus(''), 3000)
+    } catch {
+      setMonitorStatus('Failed to add monitor.')
+    }
+  }
+
+  async function removeMonitor(uid) {
+    try {
+      await deleteDoc(doc(db, 'monitors', uid))
+    } catch {
+      setMonitorStatus('Failed to remove monitor.')
+    }
+  }
+
   return (
     <div className="friends-panel">
       <div className="friends-header">
@@ -419,6 +477,12 @@ export default function FriendsPanel({ onStartDM }) {
         {isGlobalAdmin && (
           <button className={`friends-tab ${tab === 'ranks' ? 'active' : ''}`} onClick={() => setTab('ranks')}>
             👑 Ranks
+          </button>
+        )}
+        {isGlobalAdmin && (
+          <button className={`friends-tab ${tab === 'monitors' ? 'active' : ''}`} onClick={() => setTab('monitors')}>
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 5, verticalAlign: 'middle', flexShrink: 0 }}><rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="1.5"/><path d="M8 21h8M12 17v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+            Monitors
           </button>
         )}
       </div>
@@ -599,6 +663,77 @@ export default function FriendsPanel({ onStartDM }) {
                   })}
                 </div>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Monitors tab (admin only) ── */}
+        {tab === 'monitors' && isGlobalAdmin && (
+          <div style={{ padding: 16 }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 12 }}>
+              Search a user by email to assign or remove monitor status.
+            </p>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <input
+                className="settings-input"
+                style={{ flex: 1 }}
+                value={monitorEmail}
+                onChange={e => { setMonitorEmail(e.target.value); setMonitorSearchResult(null); setMonitorStatus('') }}
+                placeholder="Enter email address…"
+                onKeyDown={e => e.key === 'Enter' && searchMonitorUser()}
+              />
+              <button className="btn-confirm" onClick={searchMonitorUser} disabled={monitorLoading || !monitorEmail.trim()}>
+                {monitorLoading ? '…' : 'Search'}
+              </button>
+            </div>
+            {monitorStatus && (
+              <p style={{ fontSize: 13, color: monitorStatus.startsWith('✅') ? 'var(--success)' : 'var(--text-muted)', marginBottom: 8 }}>
+                {monitorStatus}
+              </p>
+            )}
+            {monitorSearchResult && (
+              <div style={{ background: 'var(--bg-tertiary)', borderRadius: 10, padding: 16, marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                  <Avatar user={monitorSearchResult} size={40} showStatus={false} />
+                  <div>
+                    <div style={{ fontWeight: 700, color: 'var(--header-primary)' }}>{monitorSearchResult.displayName}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{monitorSearchResult.email}</div>
+                  </div>
+                </div>
+                {monitorUids.has(monitorSearchResult.uid) ? (
+                  <p style={{ fontSize: 13, color: 'var(--accent)', margin: 0 }}>Already a monitor.</p>
+                ) : (
+                  <button className="btn-confirm" style={{ fontSize: 13, padding: '6px 18px' }} onClick={() => addMonitor(monitorSearchResult)}>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 6, verticalAlign: 'middle', flexShrink: 0 }}><rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="1.5"/><path d="M8 21h8M12 17v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                    Add as Monitor
+                  </button>
+                )}
+              </div>
+            )}
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, marginBottom: 8 }}>
+              Current Monitors ({monitorDocs.length})
+            </div>
+            {monitorDocs.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>No monitors assigned yet.</p>
+            ) : (
+              monitorDocs.map(m => (
+                <div key={m.uid} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '8px 12px', borderRadius: 8, background: 'var(--bg-tertiary)', marginBottom: 6,
+                }}>
+                  <div>
+                    <div style={{ fontWeight: 700, color: 'var(--header-primary)', fontSize: 13 }}>{m.displayName || m.email}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{m.email}</div>
+                  </div>
+                  <button
+                    className="btn-danger"
+                    style={{ fontSize: 12, padding: '4px 12px' }}
+                    onClick={() => removeMonitor(m.uid)}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))
             )}
           </div>
         )}

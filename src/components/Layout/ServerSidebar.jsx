@@ -3,6 +3,7 @@ import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDoc
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import { isAdmin } from '../../utils/admin'
+import { useMonitor } from '../../contexts/MonitorContext'
 import InviteToServer from '../Modals/InviteToServer'
 import CreateServer from '../Modals/CreateServer'
 import JoinServer from '../Modals/JoinServer'
@@ -33,6 +34,7 @@ function CtxMenu({ server, currentUser, pos, onClose, onLeave, onDisband, onInvi
 
 export default function ServerSidebar({ activeServerId, onSelectServer, discoverActive, onOpenDiscover }) {
   const { currentUser } = useAuth()
+  const { isMonitor, isGlobalAdmin, pendingReports, showMonitorPanel, setShowMonitorPanel } = useMonitor()
   const [servers, setServers] = useState([])
   const [modal, setModal] = useState(null)
   const [menu, setMenu] = useState(null)
@@ -119,6 +121,22 @@ export default function ServerSidebar({ activeServerId, onSelectServer, discover
       {/* Discover — pinned to the bottom, Discord-style */}
       <div className="server-sidebar-bottom">
         <div className="server-divider" />
+        {(isMonitor || isGlobalAdmin) && (
+          <div
+            className={`server-icon server-icon-monitor ${showMonitorPanel ? 'active' : ''}`}
+            onClick={() => setShowMonitorPanel(true)}
+            data-tooltip="Monitor Panel"
+            style={{ position: 'relative' }}
+          >
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+              <path d="M8 21h8M12 17v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+            {pendingReports.length > 0 && (
+              <span className="monitor-badge">{pendingReports.length}</span>
+            )}
+          </div>
+        )}
         <div
           className={`server-icon server-icon-discover ${discoverActive ? 'active' : ''}`}
           onClick={onOpenDiscover}
