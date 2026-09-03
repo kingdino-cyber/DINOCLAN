@@ -18,6 +18,7 @@ import UserProfileModal from '../Modals/UserProfileModal'
 import NotificationToast from '../NotificationToast'
 import HelpButton from '../Monitor/HelpButton'
 import MonitorPanel from '../Monitor/MonitorPanel'
+import MonitorNotification from '../Monitor/MonitorNotification'
 import { useMonitor } from '../../contexts/MonitorContext'
 
 export default function MainLayout() {
@@ -224,6 +225,7 @@ const location = useLocation()
   return (
     <ProfileProvider>
       <HelpButton />
+      <MonitorNotification onOpenDM={handleStartDM} />
       <div className="app-layout">
         {show67 && (
           <div className="overlay-67" onClick={() => setShow67(false)}>

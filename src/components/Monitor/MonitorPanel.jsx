@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { collection, query, where, getDocs, doc, updateDoc, Timestamp } from 'firebase/firestore'
+import { collection, query, where, getDocs, doc, updateDoc, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useMonitor } from '../../contexts/MonitorContext'
+import { useAuth } from '../../contexts/AuthContext'
 import UserPanel from '../Layout/UserPanel'
 
 const ADMIN_EMAIL = 'bohlehsaurus7@gmail.com'
@@ -42,6 +43,7 @@ function StatusBadge({ status }) {
 
 // ─── ADMIN PANEL ─────────────────────────────────────────────────────────────
 function AdminPanel({ monitorDocs, pendingReports, setShowMonitorPanel, onStartDM }) {
+  const { currentUser } = useAuth()
   const [suspendEmail, setSuspendEmail] = useState('')
   const [suspendDays, setSuspendDays]   = useState(1)
   const [suspendStatus, setSuspendStatus] = useState('')
@@ -51,6 +53,14 @@ function AdminPanel({ monitorDocs, pendingReports, setShowMonitorPanel, onStartD
 
   async function handleChatWith(report) {
     await updateDoc(doc(db, 'reports', report.id), { status: 'in_progress' })
+    await addDoc(collection(db, 'notifications'), {
+      toUid: report.reporterUid,
+      fromUid: currentUser.uid,
+      fromName: currentUser.displayName || currentUser.email,
+      type: 'monitor_dm',
+      read: false,
+      createdAt: serverTimestamp(),
+    })
     setShowMonitorPanel(false)
     onStartDM(report.reporterUid)
   }
@@ -330,6 +340,7 @@ function AdminPanel({ monitorDocs, pendingReports, setShowMonitorPanel, onStartD
 
 // ─── MONITOR PANEL ────────────────────────────────────────────────────────────
 function MonitorView({ pendingReports, setShowMonitorPanel, onStartDM }) {
+  const { currentUser } = useAuth()
   const [lightboxUrl, setLightboxUrl] = useState(null)
   const [suspendEmail, setSuspendEmail] = useState('')
   const [suspendDays, setSuspendDays]   = useState(1)
@@ -338,6 +349,14 @@ function MonitorView({ pendingReports, setShowMonitorPanel, onStartDM }) {
 
   async function handleChatWith(report) {
     await updateDoc(doc(db, 'reports', report.id), { status: 'in_progress' })
+    await addDoc(collection(db, 'notifications'), {
+      toUid: report.reporterUid,
+      fromUid: currentUser.uid,
+      fromName: currentUser.displayName || currentUser.email,
+      type: 'monitor_dm',
+      read: false,
+      createdAt: serverTimestamp(),
+    })
     setShowMonitorPanel(false)
     onStartDM(report.reporterUid)
   }
@@ -363,21 +382,32 @@ function MonitorView({ pendingReports, setShowMonitorPanel, onStartDM }) {
       <style>{`
         .mp-monitor-layout { display:flex; flex:1; overflow:hidden; }
         .mp-monitor-sidebar {
-          width:220px; flex-shrink:0; display:flex; flex-direction:column;
+          width:230px; flex-shrink:0; display:flex; flex-direction:column;
           background:var(--bg-primary); border-right:1px solid rgba(255,255,255,0.05);
-          padding:18px 12px 0;
+          padding:20px 14px 0;
         }
-        .mp-monitor-sidebar-title {
-          font-size:10px; font-weight:700; text-transform:uppercase;
-          letter-spacing:0.1em; color:var(--text-muted); margin-bottom:14px; padding:0 4px;
+        .mp-monitor-role-card {
+          border-radius:12px; padding:16px 14px; margin-bottom:16px;
+          background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 18%,transparent),color-mix(in srgb,var(--accent) 6%,transparent));
+          border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);
         }
-        .mp-monitor-info-card {
-          background:color-mix(in srgb,var(--accent) 10%,transparent);
-          border:1px solid color-mix(in srgb,var(--accent) 25%,transparent);
-          border-radius:10px; padding:14px 12px;
-          color:var(--accent); font-size:12px; line-height:1.5;
+        .mp-monitor-role-icon {
+          width:40px; height:40px; border-radius:10px; margin-bottom:10px;
+          background:color-mix(in srgb,var(--accent) 20%,transparent);
+          display:flex; align-items:center; justify-content:center; color:var(--accent);
         }
-        .mp-monitor-info-card strong { display:block; font-size:13px; margin-bottom:4px; color:var(--header-primary); }
+        .mp-monitor-role-title { font-size:13px; font-weight:700; color:var(--header-primary); margin-bottom:4px; }
+        .mp-monitor-role-desc { font-size:12px; color:var(--text-muted); line-height:1.5; }
+        .mp-monitor-stats {
+          display:flex; gap:8px; margin-bottom:16px;
+        }
+        .mp-monitor-stat {
+          flex:1; background:var(--bg-secondary); border-radius:10px;
+          padding:10px 12px; border:1px solid rgba(255,255,255,0.06);
+          text-align:center;
+        }
+        .mp-monitor-stat-num { font-size:20px; font-weight:800; color:var(--header-primary); line-height:1; }
+        .mp-monitor-stat-label { font-size:10px; color:var(--text-muted); margin-top:3px; text-transform:uppercase; letter-spacing:0.06em; }
         .mp-monitor-content { flex:1; overflow-y:auto; padding:28px 32px; }
         .mp-monitor-section-label {
           font-size:11px; font-weight:700; text-transform:uppercase;
@@ -388,10 +418,39 @@ function MonitorView({ pendingReports, setShowMonitorPanel, onStartDM }) {
         .mp-monitor-report-card {
           background:var(--bg-tertiary); border-radius:14px;
           border:1px solid rgba(255,255,255,0.07);
-          padding:18px 20px; margin-bottom:12px;
-          animation:mp-in 0.2s ease; transition:border-color 0.2s;
+          padding:20px 22px; margin-bottom:12px;
+          animation:mp-in 0.2s ease; transition:border-color 0.2s, box-shadow 0.2s;
         }
-        .mp-monitor-report-card:hover { border-color:rgba(255,255,255,0.14); }
+        .mp-monitor-report-card:hover { border-color:rgba(255,255,255,0.15); box-shadow:0 4px 20px rgba(0,0,0,0.2); }
+        .mp-monitor-reporter-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+        .mp-monitor-reporter-avatar {
+          width:34px; height:34px; border-radius:50%; flex-shrink:0;
+          background:color-mix(in srgb,var(--accent) 20%,transparent);
+          display:flex; align-items:center; justify-content:center;
+          color:var(--accent); font-size:14px; font-weight:700;
+        }
+        .mp-monitor-reporter-name { font-weight:700; color:var(--header-primary); font-size:14px; }
+        .mp-monitor-reporter-time { font-size:11px; color:var(--text-muted); margin-left:auto; }
+        .mp-monitor-desc {
+          color:var(--text-normal); font-size:13px; line-height:1.6;
+          margin:0 0 14px; padding:12px 14px;
+          background:rgba(0,0,0,0.2); border-radius:8px;
+          border-left:3px solid color-mix(in srgb,var(--accent) 50%,transparent);
+        }
+        .mp-monitor-actions { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+        .mp-monitor-chat-btn {
+          display:inline-flex; align-items:center; gap:7px;
+          padding:9px 20px; border-radius:9px; border:none;
+          background:var(--accent); color:#fff; font-size:13px; font-weight:700;
+          cursor:pointer; transition:opacity 0.15s, transform 0.15s;
+        }
+        .mp-monitor-chat-btn:hover { opacity:0.85; transform:translateY(-1px); }
+        .mp-suspend-section {
+          background:var(--bg-tertiary); border-radius:14px;
+          border:1px solid rgba(255,255,255,0.06); padding:24px;
+        }
+        .mp-suspend-title { font-size:14px; font-weight:700; color:var(--header-primary); margin:0 0 6px; }
+        .mp-suspend-desc2 { color:var(--text-muted); font-size:13px; line-height:1.5; margin:0 0 18px; }
       `}</style>
 
       {lightboxUrl && (
@@ -401,22 +460,36 @@ function MonitorView({ pendingReports, setShowMonitorPanel, onStartDM }) {
       )}
 
       <div className="mp-monitor-layout">
+        {/* Sidebar */}
         <div className="mp-monitor-sidebar">
-          <div className="mp-monitor-sidebar-title">Monitor</div>
-          <div className="mp-monitor-info-card">
-            <strong>Your Role</strong>
-            You've been assigned as a community monitor. Review reports and assist members.
+          <div className="mp-monitor-role-card">
+            <div className="mp-monitor-role-icon">{MONITOR_SVG(20)}</div>
+            <div className="mp-monitor-role-title">Community Monitor</div>
+            <div className="mp-monitor-role-desc">Review member reports and keep the community safe.</div>
           </div>
+
+          <div className="mp-monitor-stats">
+            <div className="mp-monitor-stat">
+              <div className="mp-monitor-stat-num">{pendingReports.length}</div>
+              <div className="mp-monitor-stat-label">Open</div>
+            </div>
+            <div className="mp-monitor-stat">
+              <div className="mp-monitor-stat-num">{pendingReports.filter(r=>r.status==='in_progress').length}</div>
+              <div className="mp-monitor-stat-label">Active</div>
+            </div>
+          </div>
+
           <div style={{marginTop:'auto'}}>
             <UserPanel />
           </div>
         </div>
 
+        {/* Content */}
         <div className="mp-monitor-content">
           {/* Reports */}
           <div style={{marginBottom:36}}>
             <div className="mp-monitor-section-label">
-              {HEART_SVG(14)} Your Assigned Reports
+              {HEART_SVG(14)} Assigned Reports
               {pendingReports.length > 0 && (
                 <span style={{marginLeft:'auto',background:'var(--danger)',color:'#fff',borderRadius:20,padding:'2px 9px',fontSize:11,fontWeight:700}}>
                   {pendingReports.length}
@@ -425,28 +498,33 @@ function MonitorView({ pendingReports, setShowMonitorPanel, onStartDM }) {
             </div>
             {pendingReports.length === 0 ? (
               <div className="mp-empty-card">
-                <div style={{fontSize:40,marginBottom:12}}>✅</div>
+                <div style={{fontSize:36,marginBottom:10}}>✅</div>
                 <div style={{color:'var(--header-primary)',fontWeight:700,fontSize:15,marginBottom:4}}>All clear</div>
-                <div style={{color:'var(--text-muted)',fontSize:13}}>No reports assigned to you.</div>
+                <div style={{color:'var(--text-muted)',fontSize:13}}>No reports assigned to you right now.</div>
               </div>
             ) : pendingReports.map(r => (
               <div className="mp-monitor-report-card" key={r.id}>
-                <div className="mp-report-meta">
-                  <span className="mp-report-name">{r.reporterName}</span>
-                  <StatusBadge status={r.status} />
-                  <span className="mp-report-time">{formatDate(r.createdAt)}</span>
+                <div className="mp-monitor-reporter-row">
+                  <div className="mp-monitor-reporter-avatar">
+                    {(r.reporterName||'?')[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="mp-monitor-reporter-name">{r.reporterName}</div>
+                    <StatusBadge status={r.status} />
+                  </div>
+                  <span className="mp-monitor-reporter-time">{formatDate(r.createdAt)}</span>
                 </div>
-                <p className="mp-report-desc">{r.description}</p>
-                <div style={{display:'flex',gap:12,alignItems:'flex-end',flexWrap:'wrap'}}>
+                <p className="mp-monitor-desc">{r.description}</p>
+                <div className="mp-monitor-actions">
                   {r.evidenceUrl && (
                     <img src={r.evidenceUrl} alt="evidence"
-                      style={{maxWidth:160,maxHeight:110,borderRadius:8,objectFit:'cover',cursor:'zoom-in',border:'1px solid rgba(255,255,255,0.1)'}}
+                      style={{maxWidth:140,maxHeight:100,borderRadius:8,objectFit:'cover',cursor:'zoom-in',border:'1px solid rgba(255,255,255,0.1)'}}
                       onClick={()=>setLightboxUrl(r.evidenceUrl)}
                     />
                   )}
-                  <button className="mp-chat-btn" onClick={()=>handleChatWith(r)}>
+                  <button className="mp-monitor-chat-btn" onClick={()=>handleChatWith(r)}>
                     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                    Chat
+                    Open Chat
                   </button>
                 </div>
               </div>
@@ -454,32 +532,30 @@ function MonitorView({ pendingReports, setShowMonitorPanel, onStartDM }) {
           </div>
 
           {/* Suspend */}
-          <div>
-            <div className="mp-monitor-section-label">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-              Suspend a User
+          <div className="mp-suspend-section">
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--danger)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+              <p className="mp-suspend-title">Suspend a User</p>
             </div>
-            <div className="mp-suspend-card">
-              <p className="mp-suspend-desc">Suspended users cannot send messages. Maximum 5 days.</p>
-              <div className="mp-suspend-row">
-                <input className="mp-input" placeholder="User email…"
-                  value={suspendEmail}
-                  onChange={e=>{setSuspendEmail(e.target.value);setSuspendStatus('')}}
-                  onKeyDown={e=>e.key==='Enter'&&handleSuspend()}
-                />
-                <select className="mp-select" value={suspendDays} onChange={e=>setSuspendDays(Number(e.target.value))}>
-                  {[1,2,3,4,5].map(d=><option key={d} value={d}>{d} day{d>1?'s':''}</option>)}
-                </select>
-                <button className="mp-suspend-btn" onClick={handleSuspend} disabled={suspendLoading||!suspendEmail.trim()}>
-                  {suspendLoading ? '…' : 'Suspend'}
-                </button>
-              </div>
-              {suspendStatus && (
-                <p className={suspendStatus.startsWith('ok:') ? 'mp-status-ok' : 'mp-status-err'}>
-                  {suspendStatus.startsWith('ok:') ? '✅ ' : '❌ '}{suspendStatus.slice(3)}
-                </p>
-              )}
+            <p className="mp-suspend-desc2">Suspended users cannot send messages for up to 5 days.</p>
+            <div className="mp-suspend-row">
+              <input className="mp-input" placeholder="User email…"
+                value={suspendEmail}
+                onChange={e=>{setSuspendEmail(e.target.value);setSuspendStatus('')}}
+                onKeyDown={e=>e.key==='Enter'&&handleSuspend()}
+              />
+              <select className="mp-select" value={suspendDays} onChange={e=>setSuspendDays(Number(e.target.value))}>
+                {[1,2,3,4,5].map(d=><option key={d} value={d}>{d} day{d>1?'s':''}</option>)}
+              </select>
+              <button className="mp-suspend-btn" onClick={handleSuspend} disabled={suspendLoading||!suspendEmail.trim()}>
+                {suspendLoading ? '…' : 'Suspend'}
+              </button>
             </div>
+            {suspendStatus && (
+              <p className={suspendStatus.startsWith('ok:') ? 'mp-status-ok' : 'mp-status-err'} style={{marginTop:12}}>
+                {suspendStatus.startsWith('ok:') ? '✅ ' : '❌ '}{suspendStatus.slice(3)}
+              </p>
+            )}
           </div>
         </div>
       </div>
