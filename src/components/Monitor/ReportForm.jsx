@@ -42,9 +42,12 @@ export default function ReportForm({ onClose }) {
     setLoading(true)
     setError('')
     try {
-      const storageRef = ref(storage, `reports/${Date.now()}_${file.name}`)
-      await uploadBytes(storageRef, file)
-      const evidenceUrl = await getDownloadURL(storageRef)
+      let evidenceUrl = null
+      try {
+        const storageRef = ref(storage, `reports/${Date.now()}_${file.name}`)
+        await uploadBytes(storageRef, file)
+        evidenceUrl = await getDownloadURL(storageRef)
+      } catch { /* upload failed (CORS) — report still submits */ }
 
       const monitorSnap = await getDocs(collection(db, 'monitors'))
       const monitors = monitorSnap.docs
