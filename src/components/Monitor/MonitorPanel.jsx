@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { collection, query, where, getDocs, doc, updateDoc, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore'
+import { collection, query, where, getDocs, doc, updateDoc, addDoc, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useMonitor } from '../../contexts/MonitorContext'
 import { useAuth } from '../../contexts/AuthContext'
@@ -55,7 +55,7 @@ function AdminPanel({ monitorDocs, pendingReports, setShowMonitorPanel, onStartD
 
   async function handleChatWith(report) {
     await updateDoc(doc(db, 'reports', report.id), { status: 'in_progress' })
-    await addDoc(collection(db, 'notifications'), {
+    await setDoc(doc(db, 'notifications', `dm_${report.id}`), {
       toUid: report.reporterUid,
       fromUid: currentUser.uid,
       fromName: currentUser.displayName || currentUser.email,
@@ -427,7 +427,7 @@ function MonitorView({ pendingReports, setShowMonitorPanel, onStartDM }) {
 
   async function handleChatWith(report) {
     await updateDoc(doc(db, 'reports', report.id), { status: 'in_progress' })
-    await addDoc(collection(db, 'notifications'), {
+    await setDoc(doc(db, 'notifications', `dm_${report.id}`), {
       toUid: report.reporterUid,
       fromUid: currentUser.uid,
       fromName: currentUser.displayName || currentUser.email,

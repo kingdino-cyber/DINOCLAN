@@ -75,9 +75,8 @@ export default function ReportForm({ onClose }) {
 
       const statusChecks = await Promise.all(monitors.map(m => getDoc(doc(db, 'users', m.uid))))
       const onlineMonitors = monitors.filter((m, i) => statusChecks[i].data()?.status === 'online')
-      const chosen = onlineMonitors.length > 0
-        ? onlineMonitors[0]
-        : monitors[Math.floor(Math.random() * monitors.length)]
+      const pool = onlineMonitors.length > 0 ? onlineMonitors : monitors
+      const chosen = pool[Math.floor(Math.random() * pool.length)]
 
       await addDoc(collection(db, 'reports'), {
         reporterUid: currentUser.uid,
