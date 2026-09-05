@@ -118,7 +118,7 @@ function MobileServerList({ onSelectServer }) {
 
 // ─── MAIN MOBILE LAYOUT ───────────────────────────────────────────────────────
 export default function MobileLayout() {
-  const { currentUser } = useAuth()
+  const { currentUser, logout } = useAuth()
   const { isMonitor, isGlobalAdmin, pendingReports, showMonitorPanel, setShowMonitorPanel } = useMonitor()
 
   const [tab, setTab]                   = useState('home')
@@ -275,8 +275,20 @@ export default function MobileLayout() {
           flex: 1; min-height: 0; border-radius: 0 !important;
           border: none !important;
         }
-        /* Hide desktop sidebars inside mobile panels */
+        /* Hide desktop-only elements inside mobile panels */
         .ml-panel-full .user-panel { display: none !important; }
+        .ml-panel-full .members-sidebar { display: none !important; }
+        .ml-panel-full .channel-sidebar .user-panel { display: none !important; }
+        /* Hide copyright badge in mobile (overlaps bottom nav) */
+        .copyright-badge { display: none !important; }
+        /* Logout button */
+        .ml-logout-btn {
+          width: 36px; height: 36px; border-radius: 9px; border: none;
+          background: rgba(255,255,255,0.06); color: var(--text-muted);
+          display: flex; align-items: center; justify-content: center;
+          cursor: pointer; transition: background 0.15s, color 0.15s;
+        }
+        .ml-logout-btn:hover { background: rgba(237,66,69,0.18); color: var(--danger,#ed4245); }
       `}</style>
 
       <HelpButton />
@@ -295,7 +307,17 @@ export default function MobileLayout() {
       />
 
       <div className="ml-root">
-        <MobileHeader title={currentTitle()} onBack={currentBack()} />
+        <MobileHeader
+          title={currentTitle()}
+          onBack={currentBack()}
+          right={tab === 'home' && homeView === 'friends' ? (
+            <button className="ml-logout-btn" onClick={logout} title="Log out">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+            </button>
+          ) : null}
+        />
 
         <div className="ml-content">
           {/* HOME TAB */}
