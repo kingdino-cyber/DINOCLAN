@@ -56,14 +56,15 @@ export default function App() {
   const [mobileMode, setMobileMode] = useState(() => localStorage.getItem('mobileMode') === 'true')
 
   useEffect(() => {
-    function onStorage(e) {
-      if (e.key === 'mobileMode') setMobileMode(e.newValue === 'true')
+    function sync() { setMobileMode(localStorage.getItem('mobileMode') === 'true') }
+    window.addEventListener('mobileModeChanged', sync)
+    window.addEventListener('storage', sync)
+    window.addEventListener('focus', sync)
+    return () => {
+      window.removeEventListener('mobileModeChanged', sync)
+      window.removeEventListener('storage', sync)
+      window.removeEventListener('focus', sync)
     }
-    window.addEventListener('storage', onStorage)
-    // Also poll on focus in case toggle happened in the same tab
-    function onFocus() { setMobileMode(localStorage.getItem('mobileMode') === 'true') }
-    window.addEventListener('focus', onFocus)
-    return () => { window.removeEventListener('storage', onStorage); window.removeEventListener('focus', onFocus) }
   }, [])
 
   return (

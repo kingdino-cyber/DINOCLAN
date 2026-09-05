@@ -15,6 +15,7 @@ export default function Login() {
     const next = !mobileMode
     setMobileMode(next)
     localStorage.setItem('mobileMode', next ? 'true' : 'false')
+    window.dispatchEvent(new Event('mobileModeChanged'))
   }
   async function handleSubmit(e) {
     e.preventDefault()
