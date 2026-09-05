@@ -15,7 +15,6 @@ import MonitorNotification from '../Monitor/MonitorNotification'
 import NotificationToast from '../NotificationToast'
 import IncomingCallBanner from '../Call/IncomingCallBanner'
 import CallUI from '../Call/CallUI'
-import UserPanel from './UserPanel'
 
 function getInitials(name = '') {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
@@ -33,7 +32,7 @@ function BottomNav({ tab, onTab, isMonitor, isGlobalAdmin, pendingReports }) {
       </button>
       <button className={`ml-nav-btn${tab==='servers'?' active':''}`} onClick={()=>onTab('servers')}>
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+          <circle cx="12" cy="12" r="3.5"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
         </svg>
         <span>Servers</span>
       </button>
@@ -47,7 +46,7 @@ function BottomNav({ tab, onTab, isMonitor, isGlobalAdmin, pendingReports }) {
       {(isMonitor || isGlobalAdmin) && (
         <button className={`ml-nav-btn${tab==='monitor'?' active':''}`} onClick={()=>onTab('monitor')} style={{position:'relative'}}>
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
           </svg>
           {pendingReports.length > 0 && (
             <span style={{position:'absolute',top:4,right:'calc(50% - 18px)',background:'var(--danger)',color:'#fff',borderRadius:'50%',width:14,height:14,fontSize:9,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -67,7 +66,7 @@ function MobileHeader({ title, onBack, right }) {
     <header className="ml-header">
       {onBack ? (
         <button className="ml-header-back" onClick={onBack}>
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6"/>
           </svg>
         </button>
@@ -101,13 +100,55 @@ function MobileServerList({ onSelectServer }) {
       ) : servers.map(srv => (
         <button key={srv.id} className="ml-server-row" onClick={() => onSelectServer(srv)}>
           <div className="ml-server-icon">
-            {srv.photoURL ? <img src={srv.photoURL} alt={srv.name} style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:14}}/> : getInitials(srv.name)}
+            {srv.photoURL
+              ? <img src={srv.photoURL} alt={srv.name} style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:14}}/>
+              : getInitials(srv.name)}
           </div>
           <div className="ml-server-info">
             <div className="ml-server-name">{srv.name}</div>
-            <div className="ml-server-members">{(srv.members||[]).length} member{(srv.members||[]).length !== 1 ? 's' : ''}</div>
+            <div className="ml-server-sub">{(srv.members||[]).length} member{(srv.members||[]).length !== 1 ? 's' : ''}</div>
           </div>
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color:'var(--text-muted)',flexShrink:0}}>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{color:'var(--text-muted)',flexShrink:0}}>
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ─── GROUP LIST ───────────────────────────────────────────────────────────────
+function MobileGroupList({ onSelectGroup }) {
+  const { currentUser } = useAuth()
+  const [groups, setGroups] = useState([])
+
+  useEffect(() => {
+    const q = query(collection(db, 'servers'), where('members', 'array-contains', currentUser.uid))
+    return onSnapshot(q, snap => {
+      setGroups(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.kind === 'group'))
+    })
+  }, [currentUser.uid])
+
+  return (
+    <div className="ml-server-list">
+      {groups.length === 0 ? (
+        <div className="ml-empty">
+          <div style={{fontSize:40,marginBottom:10}}>💬</div>
+          <div style={{color:'var(--header-primary)',fontWeight:700,marginBottom:4}}>No group chats</div>
+          <div style={{color:'var(--text-muted)',fontSize:13}}>Create or join a group from the desktop app.</div>
+        </div>
+      ) : groups.map(grp => (
+        <button key={grp.id} className="ml-server-row" onClick={() => onSelectGroup(grp)}>
+          <div className="ml-server-icon" style={{borderRadius:'50%'}}>
+            {grp.photoURL
+              ? <img src={grp.photoURL} alt={grp.name} style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'50%'}}/>
+              : getInitials(grp.name)}
+          </div>
+          <div className="ml-server-info">
+            <div className="ml-server-name">{grp.name}</div>
+            <div className="ml-server-sub">{(grp.members||[]).length} member{(grp.members||[]).length !== 1 ? 's' : ''}</div>
+          </div>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{color:'var(--text-muted)',flexShrink:0}}>
             <polyline points="9 18 15 12 9 6"/>
           </svg>
         </button>
@@ -122,13 +163,16 @@ export default function MobileLayout() {
   const { isMonitor, isGlobalAdmin, pendingReports, showMonitorPanel, setShowMonitorPanel } = useMonitor()
 
   const [tab, setTab]                   = useState('home')
-  const [activeServer, setActiveServer] = useState(null)
-  const [activeServerId, setActiveServerId] = useState(null)
+  const [homeSubTab, setHomeSubTab]     = useState('friends') // 'friends' | 'groups'
+  const [homeView, setHomeView]         = useState('main')    // 'main' | 'dm' | 'groupchat'
+  const [activeDmUid, setActiveDmUid]  = useState(null)
+  const [activeGroup, setActiveGroup]  = useState(null)
+  const [activeGroupChannelId, setActiveGroupChannelId] = useState(null)
+
+  const [activeServer, setActiveServer]       = useState(null)
+  const [activeServerId, setActiveServerId]   = useState(null)
   const [activeChannelId, setActiveChannelId] = useState(null)
-  const [activeDmUid, setActiveDmUid]   = useState(null)
-  // view stack within a tab: 'list' | 'channels' | 'chat' | 'dm'
-  const [serverView, setServerView]     = useState('list') // 'list' | 'channels' | 'chat'
-  const [homeView, setHomeView]         = useState('friends') // 'friends' | 'dm'
+  const [serverView, setServerView]           = useState('list') // 'list' | 'channels' | 'chat'
 
   useEffect(() => {
     if (showMonitorPanel) setTab('monitor')
@@ -141,17 +185,34 @@ export default function MobileLayout() {
   }
 
   async function handleSelectServer(srv) {
-    setActiveServerId(srv.id)
     const snap = await getDocs(
       query(collection(db, 'servers', srv.id, 'channels'), orderBy('position', 'asc'))
     )
     const serverDoc = await getDoc(doc(db, 'servers', srv.id))
-    setActiveServer({ id: srv.id, ...serverDoc.data() })
-    if (!snap.empty) {
-      const general = snap.docs.find(d => d.data().name === 'general') || snap.docs[0]
-      setActiveChannelId(general.id)
+    const fullServer = { id: srv.id, ...serverDoc.data() }
+    setActiveServer(fullServer)
+    setActiveServerId(srv.id)
+    const textChannels = snap.docs.filter(d => d.data().type !== 'voice')
+    const first = textChannels.find(d => d.data().name === 'general') || textChannels[0] || snap.docs[0]
+    if (first) setActiveChannelId(first.id)
+    // If only one text channel, skip channel list and go straight to chat
+    if (textChannels.length <= 1) {
+      setServerView('chat')
+    } else {
+      setServerView('channels')
     }
-    setServerView('channels')
+  }
+
+  async function handleSelectGroup(grp) {
+    const snap = await getDocs(
+      query(collection(db, 'servers', grp.id, 'channels'), orderBy('position', 'asc'))
+    )
+    const grpDoc = await getDoc(doc(db, 'servers', grp.id))
+    const fullGrp = { id: grp.id, ...grpDoc.data() }
+    setActiveGroup(fullGrp)
+    const first = snap.docs[0]
+    if (first) setActiveGroupChannelId(first.id)
+    setHomeView('groupchat')
   }
 
   function handleSelectChannel(channelId) {
@@ -165,12 +226,17 @@ export default function MobileLayout() {
     setTab('home')
   }
 
-  function handleBackFromChat() { setServerView('channels') }
-  function handleBackFromChannels() { setServerView('list') }
-  function handleBackFromDM() { setHomeView('friends'); setActiveDmUid(null) }
+  function handleBackFromGroupChat() { setHomeView('main'); setActiveGroup(null) }
+  function handleBackFromDM()        { setHomeView('main'); setActiveDmUid(null) }
+  function handleBackFromChat()      { setServerView(activeServer?.members?.length > 0 ? 'channels' : 'list') }
+  function handleBackFromChannels()  { setServerView('list') }
 
   const currentTitle = () => {
-    if (tab === 'home') return homeView === 'dm' ? 'Direct Message' : 'Home'
+    if (tab === 'home') {
+      if (homeView === 'dm') return 'Direct Message'
+      if (homeView === 'groupchat') return activeGroup?.name || 'Group Chat'
+      return 'Home'
+    }
     if (tab === 'servers') {
       if (serverView === 'chat') return activeServer?.name || 'Chat'
       if (serverView === 'channels') return activeServer?.name || 'Channels'
@@ -183,10 +249,13 @@ export default function MobileLayout() {
 
   const currentBack = () => {
     if (tab === 'home' && homeView === 'dm') return handleBackFromDM
+    if (tab === 'home' && homeView === 'groupchat') return handleBackFromGroupChat
     if (tab === 'servers' && serverView === 'chat') return handleBackFromChat
     if (tab === 'servers' && serverView === 'channels') return handleBackFromChannels
     return null
   }
+
+  const showLogout = tab === 'home' && homeView === 'main'
 
   return (
     <ProfileProvider>
@@ -195,100 +264,107 @@ export default function MobileLayout() {
           display: flex; flex-direction: column;
           height: 100vh; height: 100dvh;
           background: var(--bg-primary); overflow: hidden;
-          position: relative;
         }
         .ml-header {
           display: flex; align-items: center; justify-content: space-between;
-          padding: 0 8px; height: 52px; flex-shrink: 0;
+          padding: 0 10px; height: 52px; flex-shrink: 0;
           background: var(--bg-tertiary);
-          border-bottom: 1px solid rgba(255,255,255,0.06);
+          border-bottom: 1px solid rgba(255,255,255,0.07);
         }
         .ml-header-back {
           width: 40px; height: 40px; border-radius: 10px; border: none;
           background: none; color: var(--text-normal); cursor: pointer;
           display: flex; align-items: center; justify-content: center;
-          transition: background 0.15s;
         }
-        .ml-header-back:hover { background: rgba(255,255,255,0.08); }
         .ml-header-title {
           font-size: 15px; font-weight: 700; color: var(--header-primary);
           white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
           flex: 1; text-align: center;
         }
-        .ml-content {
-          flex: 1; overflow: hidden; display: flex; flex-direction: column;
-        }
+        .ml-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
         .ml-bottom-nav {
           display: flex; background: var(--bg-tertiary);
-          border-top: 1px solid rgba(255,255,255,0.06);
-          padding: 6px 4px 10px; padding-bottom: max(10px, env(safe-area-inset-bottom));
+          border-top: 1px solid rgba(255,255,255,0.07);
+          padding: 6px 4px; padding-bottom: max(10px, env(safe-area-inset-bottom));
           flex-shrink: 0;
         }
         .ml-nav-btn {
           flex: 1; display: flex; flex-direction: column; align-items: center;
           gap: 3px; border: none; background: none; color: var(--text-muted);
           cursor: pointer; padding: 6px 4px; border-radius: 10px;
-          transition: color 0.15s, background 0.15s; position: relative;
-          font-size: 10px; font-weight: 600;
+          transition: color 0.15s; position: relative;
+          font-size: 10px; font-weight: 600; -webkit-tap-highlight-color: transparent;
         }
         .ml-nav-btn.active { color: var(--accent); }
-        .ml-nav-btn:active { background: rgba(255,255,255,0.06); }
+        /* Sub-tab pills for Home */
+        .ml-home-tabs {
+          display: flex; gap: 6px; padding: 10px 14px 6px;
+          flex-shrink: 0;
+        }
+        .ml-home-tab {
+          flex: 1; padding: 8px 0; border-radius: 10px; border: none;
+          font-size: 13px; font-weight: 700; cursor: pointer;
+          transition: background 0.15s, color 0.15s;
+          background: var(--bg-secondary); color: var(--text-muted);
+          -webkit-tap-highlight-color: transparent;
+        }
+        .ml-home-tab.active {
+          background: color-mix(in srgb,var(--accent) 18%,transparent);
+          color: var(--accent);
+        }
+        /* Server / group rows */
         .ml-server-list {
-          flex: 1; overflow-y: auto; padding: 12px 16px;
-          display: flex; flex-direction: column; gap: 4px;
+          flex: 1; overflow-y: auto; padding: 8px 14px 14px;
+          display: flex; flex-direction: column; gap: 6px;
         }
         .ml-server-row {
-          display: flex; align-items: center; gap: 14px;
+          display: flex; align-items: center; gap: 12px;
           padding: 12px 14px; border-radius: 14px; border: none;
           background: var(--bg-secondary); cursor: pointer; text-align: left;
-          width: 100%; transition: background 0.15s;
+          width: 100%; transition: background 0.12s;
+          -webkit-tap-highlight-color: transparent;
         }
         .ml-server-row:active { background: var(--bg-tertiary); }
         .ml-server-icon {
-          width: 48px; height: 48px; border-radius: 14px; flex-shrink: 0;
+          width: 46px; height: 46px; border-radius: 14px; flex-shrink: 0;
           background: color-mix(in srgb,var(--accent) 15%,transparent);
-          color: var(--accent); font-size: 16px; font-weight: 800;
-          display: flex; align-items: center; justify-content: center;
+          color: var(--accent); font-size: 15px; font-weight: 800;
+          display: flex; align-items: center; justify-content: center; overflow: hidden;
         }
         .ml-server-info { flex: 1; min-width: 0; }
         .ml-server-name {
-          font-size: 15px; font-weight: 700; color: var(--header-primary);
+          font-size: 14px; font-weight: 700; color: var(--header-primary);
           white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
-        .ml-server-members { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+        .ml-server-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
         .ml-empty {
           flex: 1; display: flex; flex-direction: column;
           align-items: center; justify-content: center;
           text-align: center; padding: 40px 24px;
           color: var(--text-muted); font-size: 14px;
         }
-        .ml-panel-full {
-          flex: 1; overflow: hidden; display: flex; flex-direction: column;
-        }
-        /* Override inner panels to fill mobile space */
+        .ml-panel-full { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+        /* Override inner panels */
         .ml-panel-full .channel-sidebar,
         .ml-panel-full .chat-area,
         .ml-panel-full .friends-panel,
         .ml-panel-full .home-panel,
         .ml-panel-full .discover-panel,
         .ml-panel-full .monitor-panel {
-          flex: 1; min-height: 0; border-radius: 0 !important;
-          border: none !important;
+          flex: 1; min-height: 0; border-radius: 0 !important; border: none !important;
         }
-        /* Hide desktop-only elements inside mobile panels */
+        /* Hide desktop-only sidebars */
         .ml-panel-full .user-panel { display: none !important; }
         .ml-panel-full .members-sidebar { display: none !important; }
-        .ml-panel-full .channel-sidebar .user-panel { display: none !important; }
-        /* Hide copyright badge in mobile (overlaps bottom nav) */
+        /* Hide copyright badge (overlaps bottom nav on mobile) */
         .copyright-badge { display: none !important; }
-        /* Logout button */
-        .ml-logout-btn {
+        /* Logout / icon buttons in header */
+        .ml-icon-btn {
           width: 36px; height: 36px; border-radius: 9px; border: none;
           background: rgba(255,255,255,0.06); color: var(--text-muted);
           display: flex; align-items: center; justify-content: center;
-          cursor: pointer; transition: background 0.15s, color 0.15s;
+          cursor: pointer; -webkit-tap-highlight-color: transparent;
         }
-        .ml-logout-btn:hover { background: rgba(237,66,69,0.18); color: var(--danger,#ed4245); }
       `}</style>
 
       <HelpButton />
@@ -310,32 +386,50 @@ export default function MobileLayout() {
         <MobileHeader
           title={currentTitle()}
           onBack={currentBack()}
-          right={tab === 'home' && homeView === 'friends' ? (
-            <button className="ml-logout-btn" onClick={logout} title="Log out">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+          right={showLogout ? (
+            <button className="ml-icon-btn" onClick={logout} title="Log out">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
               </svg>
             </button>
           ) : null}
         />
 
         <div className="ml-content">
-          {/* HOME TAB */}
-          {tab === 'home' && homeView === 'friends' && (
-            <div className="ml-panel-full">
-              <FriendsPanel onStartDM={handleStartDM} />
-            </div>
+
+          {/* ── HOME TAB ───────────────────────────────────────────────── */}
+          {tab === 'home' && homeView === 'main' && (
+            <>
+              <div className="ml-home-tabs">
+                <button className={`ml-home-tab${homeSubTab==='friends'?' active':''}`} onClick={()=>setHomeSubTab('friends')}>
+                  Friends
+                </button>
+                <button className={`ml-home-tab${homeSubTab==='groups'?' active':''}`} onClick={()=>setHomeSubTab('groups')}>
+                  Groups
+                </button>
+              </div>
+              <div className="ml-panel-full">
+                {homeSubTab === 'friends'
+                  ? <FriendsPanel onStartDM={handleStartDM} />
+                  : <MobileGroupList onSelectGroup={handleSelectGroup} />
+                }
+              </div>
+            </>
           )}
           {tab === 'home' && homeView === 'dm' && activeDmUid && (
             <div className="ml-panel-full">
-              <DirectMessageView
-                otherUid={activeDmUid}
-                onClose={handleBackFromDM}
-              />
+              <DirectMessageView otherUid={activeDmUid} onClose={handleBackFromDM} />
+            </div>
+          )}
+          {tab === 'home' && homeView === 'groupchat' && activeGroup && activeGroupChannelId && (
+            <div className="ml-panel-full">
+              <ChatArea server={activeGroup} channelId={activeGroupChannelId} onStartDM={handleStartDM} />
             </div>
           )}
 
-          {/* SERVERS TAB */}
+          {/* ── SERVERS TAB ────────────────────────────────────────────── */}
           {tab === 'servers' && serverView === 'list' && (
             <MobileServerList onSelectServer={handleSelectServer} />
           )}
@@ -350,15 +444,11 @@ export default function MobileLayout() {
           )}
           {tab === 'servers' && serverView === 'chat' && (
             <div className="ml-panel-full">
-              <ChatArea
-                server={activeServer}
-                channelId={activeChannelId}
-                onStartDM={handleStartDM}
-              />
+              <ChatArea server={activeServer} channelId={activeChannelId} onStartDM={handleStartDM} />
             </div>
           )}
 
-          {/* DISCOVER TAB */}
+          {/* ── DISCOVER TAB ───────────────────────────────────────────── */}
           {tab === 'discover' && (
             <div className="ml-panel-full">
               <DiscoverPanel onSelectServer={serverId => {
@@ -368,7 +458,7 @@ export default function MobileLayout() {
             </div>
           )}
 
-          {/* MONITOR TAB */}
+          {/* ── MONITOR TAB ────────────────────────────────────────────── */}
           {tab === 'monitor' && (
             <div className="ml-panel-full">
               <MonitorPanel onStartDM={handleStartDM} />
