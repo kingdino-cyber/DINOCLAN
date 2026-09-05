@@ -9,6 +9,13 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error,    setError]    = useState('')
   const [loading,  setLoading]  = useState(false)
+  const [mobileMode, setMobileMode] = useState(() => localStorage.getItem('mobileMode') === 'true')
+
+  function toggleMobile() {
+    const next = !mobileMode
+    setMobileMode(next)
+    localStorage.setItem('mobileMode', next ? 'true' : 'false')
+  }
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
@@ -54,6 +61,15 @@ export default function Login() {
         <p className="auth-switch">
           Need an account? <Link to="/register">Register</Link>
         </p>
+
+        <button className="mobile-toggle-btn" onClick={toggleMobile} type="button">
+          <span className={`mobile-toggle-track${mobileMode ? ' on' : ''}`}>
+            <span className="mobile-toggle-thumb" />
+          </span>
+          <span className="mobile-toggle-label">
+            📱 Mobile Mode{mobileMode ? ' — On' : ' — Off'}
+          </span>
+        </button>
       </div>
     </div>
   )

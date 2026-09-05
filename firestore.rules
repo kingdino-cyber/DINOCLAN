@@ -2,18 +2,30 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Any authenticated user can read and write their own profile.
-    // bohlehsaurus7 can write anyone's profile (admin).
-    // Any authenticated user can remove themselves from someone else's friends list.
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'bohlehsaurus7@gmail.com';
+    }
+
+    function isMonitor() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/monitors/$(request.auth.uid));
+    }
+
+    // Any authenticated user can read profiles.
+    // Own profile, admin, friends removing themselves, or monitors writing suspendedUntil only.
     match /users/{userId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null && (
         request.auth.uid == userId ||
-        request.auth.token.email == 'bohlehsaurus7@gmail.com' ||
+        isAdmin() ||
         (
           request.auth.uid in resource.data.get('friends', []) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['friends']) &&
           !request.resource.data.friends.hasAll([request.auth.uid])
+        ) ||
+        (
+          isMonitor() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['suspendedUntil'])
         )
       );
 
@@ -23,18 +35,38 @@ service cloud.firestore {
       }
     }
 
-    // Any logged-in user can read any server (needed for invites, discover, join links).
-    // Any logged-in user can create or update a server (create their own, or join/leave one).
-    // Only the owner can delete a server.
-    match /servers/{serverId} {
-      allow read:          if request.auth != null;
-      allow create:        if request.auth != null;
-      allow update:        if request.auth != null;
-      allow delete:        if request.auth != null &&
-                              resource.data.ownerId == request.auth.uid;
+    // Monitors collection: any logged-in user can read (needed to assign reports),
+    // only admin can write.
+    match /monitors/{uid} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
 
-      // Any logged-in user can read channels (needed to load the channel list after joining).
-      // Only server members or the owner can write channels.
+    // Reports: any logged-in user can create, reporter/assignedMonitor/admin can read+update.
+    match /reports/{reportId} {
+      allow create: if request.auth != null;
+      allow read, update: if request.auth != null && (
+        isAdmin() ||
+        resource.data.reporterUid == request.auth.uid ||
+        resource.data.assignedMonitorUid == request.auth.uid
+      );
+    }
+
+    // Notifications: any logged-in user can create, only the recipient can read/update.
+    match /notifications/{notifId} {
+      allow create: if request.auth != null;
+      allow read, update: if request.auth != null &&
+        resource.data.toUid == request.auth.uid;
+    }
+
+    // Servers
+    match /servers/{serverId} {
+      allow read:   if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null &&
+                       resource.data.ownerId == request.auth.uid;
+
       match /channels/{channelId} {
         allow read:  if request.auth != null;
         allow write: if request.auth != null && (
@@ -44,14 +76,11 @@ service cloud.firestore {
 
         match /messages/{messageId} {
           allow read: if request.auth != null;
-          // Create: must be your own message, or a bot/system message.
           allow create: if request.auth != null && (
             request.resource.data.uid == request.auth.uid ||
             request.resource.data.type == 'bot' ||
             request.resource.data.type == 'system'
           );
-          // Update: your own message, polls, game messages, or
-          // any member updating only social fields (reactions, important, pinned).
           allow update: if request.auth != null && (
             resource.data.uid == request.auth.uid ||
             resource.data.type == 'poll' ||

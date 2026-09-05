@@ -349,7 +349,9 @@ export default function DirectMessageView({ otherUid, onClose }) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
   }
 
-  const canSend = text.trim().length > 0 || !!pendingImage || !!pendingFile
+  const suspendedUntilDate = myData?.suspendedUntil?.toDate?.()
+  const isSuspended = suspendedUntilDate && suspendedUntilDate > new Date()
+  const canSend = !isSuspended && (text.trim().length > 0 || !!pendingImage || !!pendingFile)
 
   return (
     <div className="dm-view">
@@ -433,7 +435,14 @@ export default function DirectMessageView({ otherUid, onClose }) {
       </div>
 
       {/* ── Input ── */}
-      <div className="message-input-wrapper">
+      {isSuspended ? (
+        <div className="message-input-wrapper">
+          <div className="viewing-locked">
+            🚫 You are suspended until {suspendedUntilDate.toLocaleDateString()}. You cannot send messages.
+          </div>
+        </div>
+      ) : null}
+      <div className="message-input-wrapper" style={isSuspended ? {display:'none'} : {}}>
         {pendingImage && (
           <div className="pending-image-preview">
             <img src={pendingImage} alt="attachment" />

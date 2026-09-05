@@ -59,7 +59,7 @@ export function MonitorProvider({ children }) {
       // Fallback if composite index doesn't exist yet — fetch without orderBy
       const fallbackQ = isGlobalAdmin
         ? query(collection(db, 'reports'), where('status', 'in', ['pending', 'in_progress']))
-        : query(collection(db, 'reports'), where('assignedMonitorUid', '==', currentUser.uid))
+        : query(collection(db, 'reports'), where('assignedMonitorUid', '==', currentUser.uid), where('status', 'in', ['pending', 'in_progress']))
       onSnapshot(fallbackQ, snap => {
         const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
         docs.sort((a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0))

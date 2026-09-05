@@ -488,6 +488,10 @@ export default function MessageInput({ serverId, channelId, channelName, server,
     }
   }
 
+  // ── Suspension check ─────────────────────────────────────────────────────
+  const suspendedUntilDate = userData?.suspendedUntil?.toDate?.()
+  const isSuspended = suspendedUntilDate && suspendedUntilDate > new Date()
+
   // ── Permission check — AFTER all hooks ───────────────────────────────────
   // Per-channel viewType takes priority; falls back to the legacy server-level
   // type for channels created before this field existed.
@@ -496,6 +500,16 @@ export default function MessageInput({ serverId, channelId, channelName, server,
     || isOperator(currentUser)
     || server?.ownerId === currentUser?.uid
     || server?.editors?.includes(currentUser?.uid)
+
+  if (isSuspended) {
+    return (
+      <div className="message-input-wrapper">
+        <div className="viewing-locked">
+          🚫 You are suspended until {suspendedUntilDate.toLocaleDateString()}. You cannot send messages.
+        </div>
+      </div>
+    )
+  }
 
   if (!canPost) {
     return (

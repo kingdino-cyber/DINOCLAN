@@ -231,6 +231,30 @@ html, body, #root {
 .auth-switch a { color: var(--text-link); cursor: pointer; text-decoration: none; }
 .auth-switch a:hover { text-decoration: underline; }
 
+/* Mobile mode toggle on auth pages */
+.mobile-toggle-btn {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; margin-top: 18px; padding: 12px 14px;
+  background: rgba(255,255,255,0.04); border: 1.5px solid rgba(255,255,255,0.08);
+  border-radius: 12px; cursor: pointer; text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+}
+.mobile-toggle-btn:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); }
+.mobile-toggle-track {
+  width: 38px; height: 22px; border-radius: 11px; flex-shrink: 0;
+  background: rgba(255,255,255,0.15); position: relative;
+  transition: background 0.2s;
+}
+.mobile-toggle-track.on { background: var(--accent); }
+.mobile-toggle-thumb {
+  position: absolute; top: 3px; left: 3px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #fff; transition: transform 0.2s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+.mobile-toggle-track.on .mobile-toggle-thumb { transform: translateX(16px); }
+.mobile-toggle-label { font-size: 13px; font-weight: 600; color: var(--text-normal); }
+
 /* ── Main layout ── */
 .app-layout {
   display: flex;

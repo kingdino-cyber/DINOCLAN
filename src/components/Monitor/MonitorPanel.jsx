@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { collection, query, where, getDocs, doc, updateDoc, addDoc, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore'
+import { collection, query, where, getDocs, doc, updateDoc, addDoc, setDoc, serverTimestamp, Timestamp, deleteField } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useMonitor } from '../../contexts/MonitorContext'
 import { useAuth } from '../../contexts/AuthContext'
@@ -100,6 +100,20 @@ function AdminPanel({ monitorDocs, pendingReports, setShowMonitorPanel, onStartD
       setSuspendStatus(`Suspended for ${suspendDays} day${suspendDays > 1 ? 's' : ''}.`)
       setSuspendEmail('')
     } catch { setSuspendStatus('Failed to suspend.') }
+    setSuspendLoading(false)
+  }
+
+  async function handleUnsuspend() {
+    const email = suspendEmail.trim().toLowerCase()
+    if (!email) return
+    setSuspendLoading(true); setSuspendStatus('')
+    try {
+      const snap = await getDocs(query(collection(db, 'users'), where('email', '==', email)))
+      if (snap.empty) { setSuspendStatus('User not found.'); setSuspendLoading(false); return }
+      await updateDoc(doc(db, 'users', snap.docs[0].id), { suspendedUntil: deleteField() })
+      setSuspendStatus(`Unsuspended successfully.`)
+      setSuspendEmail('')
+    } catch { setSuspendStatus('Failed to unsuspend.') }
     setSuspendLoading(false)
   }
 
@@ -361,10 +375,14 @@ function AdminPanel({ monitorDocs, pendingReports, setShowMonitorPanel, onStartD
                   <button className="mp-suspend-btn" onClick={handleSuspend} disabled={suspendLoading||!suspendEmail.trim()}>
                     {suspendLoading ? '…' : 'Suspend'}
                   </button>
+                  <button className="mp-suspend-btn" onClick={handleUnsuspend} disabled={suspendLoading||!suspendEmail.trim()}
+                    style={{background:'var(--success,#3ba55c)'}}>
+                    {suspendLoading ? '…' : 'Unsuspend'}
+                  </button>
                 </div>
                 {suspendStatus && (
-                  <p className={suspendStatus.startsWith('Suspended') ? 'mp-status-ok' : 'mp-status-err'}>
-                    {suspendStatus.startsWith('Suspended') ? '✅ ' : '❌ '}{suspendStatus}
+                  <p className={suspendStatus.includes('uspended') && !suspendStatus.startsWith('Failed') && !suspendStatus.startsWith('Cannot') && !suspendStatus.startsWith('User') ? 'mp-status-ok' : 'mp-status-err'}>
+                    {suspendStatus.includes('uspended') && !suspendStatus.startsWith('Failed') && !suspendStatus.startsWith('Cannot') && !suspendStatus.startsWith('User') ? '✅ ' : '❌ '}{suspendStatus}
                   </p>
                 )}
               </div>

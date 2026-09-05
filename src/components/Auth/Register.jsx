@@ -12,6 +12,13 @@ export default function Register() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [agreedToTerms, setAgreedToTerms] = useState(false)
+  const [mobileMode, setMobileMode] = useState(() => localStorage.getItem('mobileMode') === 'true')
+
+  function toggleMobile() {
+    const next = !mobileMode
+    setMobileMode(next)
+    localStorage.setItem('mobileMode', next ? 'true' : 'false')
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -88,6 +95,15 @@ export default function Register() {
         <p className="auth-switch">
           Already have an account? <Link to="/login">Log In</Link>
         </p>
+
+        <button className="mobile-toggle-btn" onClick={toggleMobile} type="button">
+          <span className={`mobile-toggle-track${mobileMode ? ' on' : ''}`}>
+            <span className="mobile-toggle-thumb" />
+          </span>
+          <span className="mobile-toggle-label">
+            📱 Mobile Mode{mobileMode ? ' — On' : ' — Off'}
+          </span>
+        </button>
       </div>
     </div>
   )
