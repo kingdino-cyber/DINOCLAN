@@ -34,7 +34,7 @@ export default function Login() {
     <div className="auth-page">
       <DinoDecorations />
       <div className="auth-box">
-        <h1>🦕 Welcome back!</h1>
+        <h1><img src="/dinoclan-logo.png" alt="DINOCLAN" style={{width:70,height:70,objectFit:'contain',verticalAlign:'middle',marginRight:4}} />Welcome back!</h1>
         <p className="auth-subtitle">The dinos missed you! 🦖</p>
         <form onSubmit={handleSubmit}>
           <label>Email</label>
@@ -68,7 +68,11 @@ export default function Login() {
             <span className="mobile-toggle-thumb" />
           </span>
           <span className="mobile-toggle-label">
-            📱 Mobile Mode{mobileMode ? ' — On' : ' — Off'}
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>
+              <rect x="5" y="2" width="14" height="20" rx="2"/>
+              <polyline points="9 12 11 14 15 10"/>
+            </svg>
+            {' '}Mobile Mode{mobileMode ? ' — On' : ' — Off'}
           </span>
         </button>
       </div>

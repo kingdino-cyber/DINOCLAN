@@ -1,14 +1,16 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import DinoDecorations from '../DinoDecorations'
 
 export default function Register() {
   const { register } = useAuth()
+  const navigate = useNavigate()
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [birthday, setBirthday] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [agreedToTerms, setAgreedToTerms] = useState(false)
@@ -28,9 +30,11 @@ export default function Register() {
     if (password.length < 6) { setError('Password must be at least 6 characters.'); return }
     if (!displayName.trim()) { setError('Please enter a display name.'); return }
     if (!agreedToTerms) { setError('You must agree to the Terms of Service to continue.'); return }
+    if (!birthday) { setError('Please enter your birthday.'); return }
     setLoading(true)
     try {
-      await register(email, password, displayName.trim())
+      await register(email, password, displayName.trim(), birthday)
+      navigate('/app')
     } catch (err) {
       console.error('Registration error:', err)
       setError(friendlyError(err.code))
@@ -43,7 +47,7 @@ export default function Register() {
     <div className="auth-page">
       <DinoDecorations />
       <div className="auth-box">
-        <h1>🦖 Join the Herd!</h1>
+        <h1><img src="/dinoclan-logo.png" alt="DINOCLAN" style={{width:70,height:70,objectFit:'contain',verticalAlign:'middle',marginRight:4}} />Join the Herd!</h1>
         <p className="auth-subtitle">Create your dino account today! 🦕</p>
         <form onSubmit={handleSubmit}>
           <label>Display Name</label>
@@ -79,6 +83,14 @@ export default function Register() {
             placeholder="Confirm your password"
             required
           />
+          <label>Birthday</label>
+          <input
+            type="date"
+            value={birthday}
+            onChange={e => setBirthday(e.target.value)}
+            required
+            max={new Date().toISOString().split('T')[0]}
+          />
           <label className="terms-checkbox-label">
             <input
               type="checkbox"
@@ -102,7 +114,11 @@ export default function Register() {
             <span className="mobile-toggle-thumb" />
           </span>
           <span className="mobile-toggle-label">
-            📱 Mobile Mode{mobileMode ? ' — On' : ' — Off'}
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>
+              <rect x="5" y="2" width="14" height="20" rx="2"/>
+              <polyline points="9 12 11 14 15 10"/>
+            </svg>
+            {' '}Mobile Mode{mobileMode ? ' — On' : ' — Off'}
           </span>
         </button>
       </div>

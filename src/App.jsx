@@ -9,7 +9,8 @@ import VerifyEmail from './components/Auth/VerifyEmail'
 import Terms from './components/Auth/Terms'
 import MainLayout from './components/Layout/MainLayout'
 import MobileLayout from './components/Layout/MobileLayout'
-import WordCounter from './components/WordCounter/WordCounter'
+import LandingPage from './components/Landing/LandingPage'
+import BirthdayEffect from './components/BirthdayEffect'
 
 function SuspendedScreen({ until, onLogout }) {
   return (
@@ -35,6 +36,30 @@ function SuspendedScreen({ until, onLogout }) {
       </button>
     </div>
   )
+}
+
+function BirthdayCheck() {
+  const { myProfile } = useAuth()
+  const [show, setShow] = useState(false)
+
+  useEffect(() => {
+    if (!myProfile?.birthday) return
+    const today = new Date()
+    const [, month, day] = myProfile.birthday.split('-')
+    if (
+      parseInt(month) === today.getMonth() + 1 &&
+      parseInt(day) === today.getDate()
+    ) {
+      const key = `bd_shown_${today.getFullYear()}_${myProfile.uid}`
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, '1')
+        setShow(true)
+      }
+    }
+  }, [myProfile])
+
+  if (!show) return null
+  return <BirthdayEffect onDone={() => setShow(false)} />
 }
 
 function PrivateRoute({ children }) {
@@ -73,13 +98,14 @@ export default function App() {
         <CallProvider>
           <MonitorProvider>
           <Routes>
-            <Route path="/"             element={<WordCounter />} />
+            <Route path="/"             element={<LandingPage />} />
             <Route path="/login"        element={<PublicRoute><Login /></PublicRoute>} />
-            <Route path="/register"     element={<PublicRoute><Register /></PublicRoute>} />
+            <Route path="/register"     element={<Register />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/terms"        element={<Terms />} />
             <Route path="/app/*"        element={<PrivateRoute>{mobileMode ? <MobileLayout /> : <MainLayout />}</PrivateRoute>} />
           </Routes>
+          <BirthdayCheck />
           <div className="copyright-badge">© 2026 DINOCLAN. All rights reserved.</div>
           </MonitorProvider>
         </CallProvider>

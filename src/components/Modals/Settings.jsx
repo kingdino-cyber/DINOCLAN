@@ -67,6 +67,7 @@ export default function Settings({ onClose }) {
   // Profile state
   const [displayName,    setDisplayName]    = useState(currentUser?.displayName || '')
   const [aboutMe,        setAboutMe]        = useState('')
+  const [birthday,       setBirthday]       = useState('')
   const [selectedAvatar, setSelectedAvatar] = useState(null)
   const [previewUrl,     setPreviewUrl]     = useState(null)
   const [uploading,      setUploading]      = useState(false)
@@ -89,6 +90,7 @@ export default function Settings({ onClose }) {
     getDoc(doc(db, 'users', currentUser.uid)).then(snap => {
       if (snap.exists()) {
         setAboutMe(snap.data().aboutMe || '')
+        setBirthday(snap.data().birthday || '')
         setRayMode(!!snap.data().rayMode)
         setPandaMode(!!snap.data().pandaMode)
       }
@@ -130,7 +132,7 @@ export default function Settings({ onClose }) {
     setSaving(true); setProfileError('')
     try {
       await updateProfile(auth.currentUser, { displayName: displayName.trim() })
-      const updates = { displayName: displayName.trim(), aboutMe: aboutMe.slice(0, 500) }
+      const updates = { displayName: displayName.trim(), aboutMe: aboutMe.slice(0, 500), birthday: birthday || null }
       if (previewUrl) {
         updates.photoURL     = previewUrl
         updates.avatarEmoji  = null
@@ -188,7 +190,11 @@ export default function Settings({ onClose }) {
         {/* ── Sidebar ── */}
         <div className="settings-sidebar">
           <div className="settings-category">User Settings</div>
-          <div className={`settings-tab ${tab === 'profile'    ? 'active' : ''}`} onClick={() => setTab('profile')}>👤 My Account</div>
+          <div className={`settings-tab ${tab === 'profile'    ? 'active' : ''}`} onClick={() => setTab('profile')}>
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" style={{verticalAlign:'middle',marginRight:6,marginBottom:1}}>
+              <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+            </svg>My Account
+          </div>
           <div className={`settings-tab ${tab === 'status'     ? 'active' : ''}`} onClick={() => setTab('status')}>🟢 Status</div>
           <div className={`settings-tab ${tab === 'security'   ? 'active' : ''}`} onClick={() => setTab('security')}>🔒 Security</div>
           <div className={`settings-tab ${tab === 'appearance' ? 'active' : ''}`} onClick={() => setTab('appearance')}>🎨 Appearance</div>
@@ -237,6 +243,16 @@ export default function Settings({ onClose }) {
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'right', marginTop: 2 }}>
                   {aboutMe.length}/500
                 </div>
+
+                <label className="settings-label">Birthday</label>
+                <input
+                  type="date"
+                  className="settings-input"
+                  value={birthday}
+                  onChange={e => setBirthday(e.target.value)}
+                  max={new Date().toISOString().split('T')[0]}
+                  style={{ colorScheme: 'dark' }}
+                />
 
                 <label className="settings-label">Or choose a Dino Avatar 🦕</label>
                 <div className="avatar-grid">

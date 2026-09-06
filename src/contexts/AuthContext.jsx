@@ -25,16 +25,16 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
   const [myProfile, setMyProfile] = useState(null) // Firestore users/{uid} doc — shared across all UserPanel instances
 
-  async function register(email, password, displayName) {
+  async function register(email, password, displayName, birthday) {
     const cred = await createUserWithEmailAndPassword(auth, email, password)
     await updateProfile(cred.user, { displayName })
-    // Email verification removed — accounts work immediately
     setDoc(doc(db, 'users', cred.user.uid), {
       uid: cred.user.uid,
       displayName,
       email,
       photoURL: null,
       status: 'online',
+      birthday: birthday || null,
       createdAt: serverTimestamp(),
     }).catch(err => console.warn('Firestore profile write failed:', err.code, err.message))
     return cred

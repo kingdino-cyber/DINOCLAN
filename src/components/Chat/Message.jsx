@@ -216,6 +216,7 @@ function CountdownMessage({ message }) {
 /* ── File attachment card ── */
 function FileAttachment({ url, name, size, type }) {
   const [downloading, setDownloading] = useState(false)
+  const [showWarning, setShowWarning] = useState(false)
 
   function formatSize(bytes) {
     if (!bytes) return ''
@@ -247,11 +248,8 @@ function FileAttachment({ url, name, size, type }) {
     return '📎'
   }
 
-  async function handleDownload(e) {
-    e.preventDefault()
-    e.stopPropagation()
+  async function doDownload() {
     if (!url) return
-    // data: URLs work fine with <a download> — just trigger it directly
     if (url.startsWith('data:')) {
       const a = document.createElement('a')
       a.href = url
@@ -259,7 +257,6 @@ function FileAttachment({ url, name, size, type }) {
       a.click()
       return
     }
-    // Cross-origin Storage URLs: fetch as blob so the browser saves instead of navigating
     setDownloading(true)
     try {
       const res = await fetch(url)
@@ -271,26 +268,78 @@ function FileAttachment({ url, name, size, type }) {
       a.click()
       setTimeout(() => URL.revokeObjectURL(objUrl), 10000)
     } catch {
-      // Fallback: open in new tab
       window.open(url, '_blank')
     } finally {
       setDownloading(false)
     }
   }
 
+  function handleClick(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    setShowWarning(true)
+  }
+
   return (
-    <div
-      className="file-attachment"
-      onClick={handleDownload}
-      style={{ cursor: downloading ? 'wait' : 'pointer' }}
-    >
-      <span className="file-attach-icon">{getIcon(type, name)}</span>
-      <div className="file-attach-info">
-        <span className="file-attach-name">{name || 'File'}</span>
-        {size > 0 && <span className="file-attach-size">{formatSize(size)}</span>}
+    <>
+      {showWarning && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          background: 'rgba(0,0,0,0.6)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+          padding: 24,
+        }} onClick={() => setShowWarning(false)}>
+          <div style={{
+            background: 'var(--bg-secondary)', border: '1px solid var(--border)',
+            borderRadius: 16, padding: '32px 28px', maxWidth: 380, width: '100%',
+            textAlign: 'center', boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
+            <h3 style={{ color: 'var(--header-primary)', fontSize: 17, fontWeight: 800, marginBottom: 8 }}>
+              This file might be untrustworthy
+            </h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, lineHeight: 1.6, marginBottom: 8 }}>
+              <strong style={{ color: 'var(--text-normal)' }}>{name || 'This file'}</strong> was shared by another user. Only download files from people you trust.
+            </p>
+            <p style={{ color: 'var(--text-muted)', fontSize: 12, lineHeight: 1.5, marginBottom: 24 }}>
+              Executable files (.jar, .exe, .bat, etc.) can run code on your device. Proceed with caution.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button
+                onClick={() => setShowWarning(false)}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: 10, border: '1px solid var(--border)',
+                  background: 'transparent', color: 'var(--text-normal)', fontWeight: 700,
+                  fontSize: 14, cursor: 'pointer',
+                }}
+              >Cancel</button>
+              <button
+                onClick={() => { setShowWarning(false); doDownload() }}
+                onMouseEnter={e => e.currentTarget.style.filter = 'brightness(0.82)'}
+                onMouseLeave={e => e.currentTarget.style.filter = ''}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: 10, border: 'none',
+                  background: 'var(--danger)', color: '#fff', fontWeight: 700,
+                  fontSize: 14, cursor: 'pointer', transition: 'filter 0.15s',
+                }}
+              >Download Anyway</button>
+            </div>
+          </div>
+        </div>
+      )}
+      <div
+        className="file-attachment"
+        onClick={handleClick}
+        style={{ cursor: downloading ? 'wait' : 'pointer' }}
+      >
+        <span className="file-attach-icon">{getIcon(type, name)}</span>
+        <div className="file-attach-info">
+          <span className="file-attach-name">{name || 'File'}</span>
+          {size > 0 && <span className="file-attach-size">{formatSize(size)}</span>}
+        </div>
+        <span className="file-attach-dl" title="Download">{downloading ? '⏳' : '⬇️'}</span>
       </div>
-      <span className="file-attach-dl" title="Download">{downloading ? '⏳' : '⬇️'}</span>
-    </div>
+    </>
   )
 }
 

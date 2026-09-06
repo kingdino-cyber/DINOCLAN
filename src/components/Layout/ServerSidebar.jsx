@@ -74,10 +74,10 @@ export default function ServerSidebar({ activeServerId, onSelectServer, discover
       <div className="server-sidebar-scroll">
         {/* Home */}
         <div
-          className={`server-icon ${!activeServerId && !discoverActive ? 'active' : ''}`}
+          className={`server-icon server-icon-home ${!activeServerId && !discoverActive ? 'active' : ''}`}
           onClick={() => onSelectServer(null)}
           data-tooltip="Home"
-        >🦕</div>
+        ><img src="/dinoclan-logo.png" alt="Home" style={{width:'100%',height:'100%',objectFit:'contain',borderRadius:'inherit'}} /></div>
 
         <div className="server-divider" />
 
