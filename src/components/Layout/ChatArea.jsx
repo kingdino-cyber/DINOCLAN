@@ -6,6 +6,7 @@ import MessageInput from '../Chat/MessageInput'
 import MessageSearch from '../Chat/MessageSearch'
 import MembersSidebar from './MembersSidebar'
 import VoiceChannelView from '../Chat/VoiceChannelView'
+import DinoLogo from '../DinoLogo'
 
 export default function ChatArea({ server, channelId, onStartDM }) {
   const [channel, setChannel] = useState(null)
@@ -28,7 +29,7 @@ export default function ChatArea({ server, channelId, onStartDM }) {
     return (
       <div className="chat-area">
         <div className="empty-state">
-          <div className="empty-icon">🦕</div>
+          <div className="empty-icon"><DinoLogo style={{width:64,height:64,objectFit:'contain'}} /></div>
           <h2>No channel selected</h2>
           <p>Pick a channel from the sidebar and let the dinos roam! 🦖</p>
         </div>

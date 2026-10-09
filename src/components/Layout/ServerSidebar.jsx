@@ -7,6 +7,8 @@ import { useMonitor } from '../../contexts/MonitorContext'
 import InviteToServer from '../Modals/InviteToServer'
 import CreateServer from '../Modals/CreateServer'
 import JoinServer from '../Modals/JoinServer'
+import DinoLogo from '../DinoLogo'
+import LeaveIcon from '../LeaveIcon'
 
 function getInitials(name) {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
@@ -26,7 +28,7 @@ function CtxMenu({ server, currentUser, pos, onClose, onLeave, onDisband, onInvi
   return (
     <div ref={ref} className="server-ctx-menu" style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9999 }}>
       <button className="server-ctx-item" onClick={onInvite}>📨 Invite to Server</button>
-      {!isOwner && <button className="server-ctx-item leave" onClick={onLeave}>🚪 Leave Server</button>}
+      {!isOwner && <button className="server-ctx-item leave" onClick={onLeave}><LeaveIcon style={{marginRight:6}}/> Leave Server</button>}
       {canDisband && <button className="server-ctx-item disband" onClick={onDisband}>💥 Disband Server</button>}
     </div>
   )
@@ -77,7 +79,7 @@ export default function ServerSidebar({ activeServerId, onSelectServer, discover
           className={`server-icon server-icon-home ${!activeServerId && !discoverActive ? 'active' : ''}`}
           onClick={() => onSelectServer(null)}
           data-tooltip="Home"
-        ><img src="/dinoclan-logo.png" alt="Home" style={{width:'100%',height:'100%',objectFit:'contain',borderRadius:'inherit'}} /></div>
+        ><DinoLogo alt="Home" style={{width:'100%',height:'100%',objectFit:'contain',borderRadius:'inherit'}} /></div>
 
         <div className="server-divider" />
 

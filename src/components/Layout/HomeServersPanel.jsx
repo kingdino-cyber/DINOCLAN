@@ -7,6 +7,7 @@ import InviteToServer from '../Modals/InviteToServer'
 import CreateGroup from '../Modals/CreateGroup'
 import SponsorBanner from './SponsorBanner'
 import UserPanel from './UserPanel'
+import LeaveIcon from '../LeaveIcon'
 
 function getInitials(name) {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
@@ -26,7 +27,7 @@ function GroupCtxMenu({ group, currentUser, pos, onClose, onLeave, onDisband, on
   return (
     <div ref={ref} className="server-ctx-menu" style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9999 }}>
       <button className="server-ctx-item" onClick={onInvite}>📨 Invite to Group</button>
-      {!isOwner && <button className="server-ctx-item leave" onClick={onLeave}>🚪 Leave Group</button>}
+      {!isOwner && <button className="server-ctx-item leave" onClick={onLeave}><LeaveIcon style={{marginRight:6}}/> Leave Group</button>}
       {canDisband && <button className="server-ctx-item disband" onClick={onDisband}>💥 Disband Group</button>}
     </div>
   )

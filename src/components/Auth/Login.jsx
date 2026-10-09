@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import DinoDecorations from '../DinoDecorations'
+import DinoLogo from '../DinoLogo'
 
 export default function Login() {
   const { login } = useAuth()
@@ -34,7 +35,7 @@ export default function Login() {
     <div className="auth-page">
       <DinoDecorations />
       <div className="auth-box">
-        <h1><img src="/dinoclan-logo.png" alt="DINOCLAN" style={{width:70,height:70,objectFit:'contain',verticalAlign:'middle',marginRight:4}} />Welcome back!</h1>
+        <h1><DinoLogo style={{width:70,height:70,objectFit:'contain',verticalAlign:'middle',marginRight:4}} />Welcome back!</h1>
         <p className="auth-subtitle">The dinos missed you! 🦖</p>
         <form onSubmit={handleSubmit}>
           <label>Email</label>

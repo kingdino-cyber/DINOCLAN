@@ -3,6 +3,7 @@ import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/fire
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCall } from '../../contexts/CallContext'
+import DinoLogo from '../DinoLogo'
 import { useSpeaking } from '../../utils/useSpeaking'
 import Avatar from './Avatar'
 
@@ -33,7 +34,15 @@ function ScreenIcon({ on, size = 20 }) {
 }
 
 // ── Video tile ───────────────────────────────────────────────────────────────
-function VideoTile({ uid, name, stream, isLocal, hasVideoOn, isScreenShare }) {
+function tileSizing(count) {
+  if (count <= 2)  return { w: 560, h: 360, avatar: 150 }
+  if (count <= 4)  return { w: 400, h: 270, avatar: 112 }
+  if (count <= 6)  return { w: 310, h: 210, avatar: 92 }
+  if (count <= 9)  return { w: 250, h: 175, avatar: 78 }
+  return { w: 200, h: 150, avatar: 64 }
+}
+
+function VideoTile({ uid, name, stream, isLocal, hasVideoOn, isScreenShare, avatarSize = 80 }) {
   const videoRef  = useRef(null)
   const [userData, setUserData] = useState(null)
   const speaking = useSpeaking(stream)
@@ -73,7 +82,7 @@ function VideoTile({ uid, name, stream, isLocal, hasVideoOn, isScreenShare }) {
       ) : (
         <div className="voice-tile-placeholder">
           <div className={`speaking-ring-wrap ${speaking ? 'speaking' : ''}`}>
-            <Avatar user={fakeUser} size={80} />
+            <Avatar user={fakeUser} size={avatarSize} />
           </div>
         </div>
       )}
@@ -86,7 +95,7 @@ function VideoTile({ uid, name, stream, isLocal, hasVideoOn, isScreenShare }) {
 }
 
 // ── Tile for someone in Firestore but not yet streaming ──────────────────────
-function WaitingTile({ uid, name }) {
+function WaitingTile({ uid, name, avatarSize = 80 }) {
   const [userData, setUserData] = useState(null)
   useEffect(() => {
     if (!uid) return
@@ -103,7 +112,7 @@ function WaitingTile({ uid, name }) {
   return (
     <div className="voice-tile">
       <div className="voice-tile-placeholder">
-        <Avatar user={fakeUser} size={80} />
+        <Avatar user={fakeUser} size={avatarSize} />
       </div>
       <div className="voice-tile-label">{name}</div>
     </div>
@@ -143,6 +152,9 @@ export default function VoiceChannelView({ server, channel }) {
     p => p.uid !== currentUser?.uid && !streamingUids.includes(p.uid)
   )
 
+  const tileCount = (isInCall ? 1 : 0) + streamingUids.length + waitingParticipants.length
+  const sizing = tileSizing(tileCount)
+
   return (
     <div className="voice-room">
 
@@ -156,10 +168,10 @@ export default function VoiceChannelView({ server, channel }) {
       </div>
 
       {/* ── Participant grid ── */}
-      <div className="voice-grid">
+      <div className="voice-grid" style={{ '--tile-w': `${sizing.w}px`, '--tile-h': `${sizing.h}px` }}>
         {callParticipants.length === 0 && (
           <div className="voice-empty">
-            <div style={{ fontSize: 56 }}>🦕</div>
+            <DinoLogo style={{ width: 210, height: 210, objectFit: 'contain', filter: 'drop-shadow(0 8px 32px rgba(76,175,80,0.45))' }} />
             <p>The voice channel is empty</p>
             <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Be the first one to join!</p>
           </div>
@@ -174,6 +186,7 @@ export default function VoiceChannelView({ server, channel }) {
             isLocal
             hasVideoOn={hasVideo}
             isScreenShare={isScreenSharing}
+            avatarSize={sizing.avatar}
           />
         )}
 
@@ -191,13 +204,14 @@ export default function VoiceChannelView({ server, channel }) {
               isLocal={false}
               hasVideoOn={hasRemoteVideo}
               isScreenShare={false}
+              avatarSize={sizing.avatar}
             />
           )
         })}
 
         {/* Still connecting */}
         {waitingParticipants.map(p => (
-          <WaitingTile key={p.uid} uid={p.uid} name={p.name} />
+          <WaitingTile key={p.uid} uid={p.uid} name={p.name} avatarSize={sizing.avatar} />
         ))}
       </div>
 

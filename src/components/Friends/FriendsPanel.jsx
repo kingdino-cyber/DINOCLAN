@@ -9,6 +9,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { isOperator, getGlobalRank, GLOBAL_RANK_TAGS } from '../../utils/admin'
 import { useMonitor } from '../../contexts/MonitorContext'
 import Avatar from '../Chat/Avatar'
+import DinoLogo from '../DinoLogo'
 
 /* ── Helpers ── */
 
@@ -31,11 +32,18 @@ function FriendChip({ uid }) {
   )
 }
 
+// Remembers friend profiles so rows appear instantly when you switch tabs
+const friendCache = new Map()
+
 function FriendRow({ uid, onStartDM, onRemove }) {
-  const [user, setUser] = useState(null)
+  const [user, setUser] = useState(() => friendCache.get(uid) || null)
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'users', uid), snap => {
-      if (snap.exists()) setUser({ uid: snap.id, ...snap.data() })
+      if (snap.exists()) {
+        const data = { uid: snap.id, ...snap.data() }
+        friendCache.set(uid, data)
+        setUser(data)
+      }
     })
     return unsub
   }, [uid])
@@ -163,6 +171,13 @@ function StatsCard({ user, onStartDM, currentUser }) {
 export default function FriendsPanel({ onStartDM }) {
   const { currentUser } = useAuth()
   const [tab, setTab] = useState('all')
+  const [slideDir, setSlideDir] = useState('right')
+  const TAB_ORDER = ['all', 'pending', 'add', 'invites', 'stats', 'ranks', 'monitors']
+  function switchTab(next) {
+    if (next === tab) return
+    setSlideDir(TAB_ORDER.indexOf(next) > TAB_ORDER.indexOf(tab) ? 'right' : 'left')
+    setTab(next)
+  }
 
   // existing state
   const [requests, setRequests]         = useState([])
@@ -215,6 +230,16 @@ export default function FriendsPanel({ onStartDM }) {
 
   useEffect(() => {
     setFriends(userData?.friends || [])
+  }, [userData])
+
+  // Preload friend profiles in the background so the All Friends tab fills instantly
+  useEffect(() => {
+    (userData?.friends || []).forEach(uid => {
+      if (friendCache.has(uid)) return
+      getDoc(doc(db, 'users', uid)).then(snap => {
+        if (snap.exists()) friendCache.set(uid, { uid: snap.id, ...snap.data() })
+      }).catch(() => {})
+    })
   }, [userData])
 
   // Repair one-sided friendships caused by the old acceptRequest bug:
@@ -459,28 +484,28 @@ export default function FriendsPanel({ onStartDM }) {
       </div>
 
       <div className="friends-tabs">
-        <button className={`friends-tab ${tab === 'all' ? 'active' : ''}`} onClick={() => setTab('all')}>
+        <button className={`friends-tab ${tab === 'all' ? 'active' : ''}`} onClick={() => switchTab('all')}>
           All Friends {friends.length > 0 && <span className="badge">{friends.length}</span>}
         </button>
-        <button className={`friends-tab ${tab === 'pending' ? 'active' : ''}`} onClick={() => setTab('pending')}>
+        <button className={`friends-tab ${tab === 'pending' ? 'active' : ''}`} onClick={() => switchTab('pending')}>
           Pending {requests.length > 0 && <span className="badge">{requests.length}</span>}
         </button>
-        <button className={`friends-tab ${tab === 'add' ? 'active' : ''}`} onClick={() => setTab('add')}>
+        <button className={`friends-tab ${tab === 'add' ? 'active' : ''}`} onClick={() => switchTab('add')}>
           Add Friend
         </button>
-        <button className={`friends-tab ${tab === 'invites' ? 'active' : ''}`} onClick={() => setTab('invites')}>
+        <button className={`friends-tab ${tab === 'invites' ? 'active' : ''}`} onClick={() => switchTab('invites')}>
           Invites {serverInvites.length > 0 && <span className="badge">{serverInvites.length}</span>}
         </button>
-        <button className={`friends-tab ${tab === 'stats' ? 'active' : ''}`} onClick={() => setTab('stats')}>
+        <button className={`friends-tab ${tab === 'stats' ? 'active' : ''}`} onClick={() => switchTab('stats')}>
           🔍 Stats
         </button>
         {isGlobalAdmin && (
-          <button className={`friends-tab ${tab === 'ranks' ? 'active' : ''}`} onClick={() => setTab('ranks')}>
+          <button className={`friends-tab ${tab === 'ranks' ? 'active' : ''}`} onClick={() => switchTab('ranks')}>
             👑 Ranks
           </button>
         )}
         {isGlobalAdmin && (
-          <button className={`friends-tab ${tab === 'monitors' ? 'active' : ''}`} onClick={() => setTab('monitors')}>
+          <button className={`friends-tab ${tab === 'monitors' ? 'active' : ''}`} onClick={() => switchTab('monitors')}>
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 5, verticalAlign: 'middle', flexShrink: 0 }}><rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="1.5"/><path d="M8 21h8M12 17v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
             Monitors
           </button>
@@ -488,11 +513,12 @@ export default function FriendsPanel({ onStartDM }) {
       </div>
 
       <div className="friends-body">
+       <div key={tab} className={`friends-slide-${slideDir}`}>
 
         {/* ── All friends ── */}
         {tab === 'all' && (
           friends.length === 0
-            ? <div className="friends-empty"><span>🦕</span><p>No friends yet — add some dinos!</p></div>
+            ? <div className="friends-empty"><DinoLogo style={{width:56,height:56,objectFit:'contain'}} /><p>No friends yet — add some dinos!</p></div>
             : friends.map(uid => <FriendRow key={uid} uid={uid} onStartDM={onStartDM} onRemove={removeFriend} />)
         )}
 
@@ -738,6 +764,7 @@ export default function FriendsPanel({ onStartDM }) {
           </div>
         )}
 
+       </div>
       </div>
     </div>
   )

@@ -11,6 +11,7 @@ import { isOperator } from '../../utils/admin'
 import { useCall } from '../../contexts/CallContext'
 import { playMessageSound } from '../../utils/sounds'
 import Avatar from './Avatar'
+import DinoLogo from '../DinoLogo'
 import { format, isToday, isYesterday } from 'date-fns'
 
 const EMOJI_CATEGORIES = [
@@ -374,7 +375,7 @@ export default function DirectMessageView({ otherUid, onClose }) {
       <div className="dm-messages" ref={messagesRef}>
         {messages.length === 0 && (
           <div className="welcome-banner">
-            <div className="welcome-icon">🦕</div>
+            <div className="welcome-icon"><DinoLogo style={{width:44,height:44,objectFit:'contain'}} /></div>
             <h2>Start of your conversation with {otherUser?.displayName}!</h2>
             <p>Say hi 👋</p>
           </div>

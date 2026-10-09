@@ -6,6 +6,7 @@
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import DinoDecorations from '../DinoDecorations'
+import DinoLogo from '../DinoLogo'
 
 const POP_STYLE = `
 @keyframes dinoPop {
@@ -294,7 +295,7 @@ export default function WordCounter() {
         onMouseEnter={e => { if (!popping) { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 6px 32px rgba(90,158,68,0.55)' }}}
         onMouseLeave={e => { if (!popping) { e.currentTarget.style.transform = 'scale(1)';   e.currentTarget.style.boxShadow = '0 4px 20px rgba(90,158,68,0.3)' }}}
       >
-        <span style={{ fontSize: 46, lineHeight: 1, filter: 'drop-shadow(0 2px 6px rgba(90,158,68,0.5))' }}>🦕</span>
+        <DinoLogo style={{ width: 44, height: 44, objectFit: 'contain', filter: 'drop-shadow(0 2px 6px rgba(90,158,68,0.5))' }} />
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
           <span style={{ color: 'var(--header-primary)', fontSize: 15, fontWeight: 800, letterSpacing: '0.03em', lineHeight: 1.2 }}>DinoClan</span>
           <span style={{ color: 'var(--accent)', fontSize: 11, fontWeight: 500 }}>Enter chat →</span>
@@ -303,8 +304,8 @@ export default function WordCounter() {
 
       {/* Header */}
       <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', marginBottom: 32, maxWidth: 680, width: '100%' }}>
-        <h1 style={{ fontSize: 36, fontWeight: 800, color: 'var(--header-primary)', marginBottom: 8 }}>
-          🦕 Word Counter
+        <h1 style={{ fontSize: 36, fontWeight: 800, color: 'var(--header-primary)', marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+          <DinoLogo style={{ width: 40, height: 40, objectFit: 'contain' }} /> Word Counter
         </h1>
         <p style={{ color: 'var(--text-muted)', fontSize: 15 }}>
           Paste or type any text below and instantly see your word count, reading time, and more.

@@ -5,6 +5,7 @@ import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
 import Avatar from './Chat/Avatar'
 import DinoDecorations from './DinoDecorations'
+import DinoLogo from './DinoLogo'
 
 function FriendChip({ uid }) {
   const [name, setName] = useState('...')
@@ -74,7 +75,7 @@ export default function ProfilePage() {
 
       {loading && (
         <div style={{ textAlign: 'center', marginTop: 80 }}>
-          <span style={{ fontSize: 64 }}>🦕</span>
+          <DinoLogo style={{ width: 64, height: 64, objectFit: 'contain' }} />
           <p style={{ color: 'var(--text-muted)', marginTop: 16 }}>Loading profile…</p>
         </div>
       )}

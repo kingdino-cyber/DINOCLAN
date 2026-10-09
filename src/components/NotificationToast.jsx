@@ -5,6 +5,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
+import DinoLogo from './DinoLogo'
 
 export default function NotificationToast({
   activeDmUid, onStartDM,
@@ -179,7 +180,7 @@ export default function NotificationToast({
         >
           {/* Icon */}
           <div style={{ fontSize: 30, lineHeight: 1, flexShrink: 0, marginTop: 1 }}>
-            {toast.type === 'mention' ? '🔔' : '🦕'}
+            {toast.type === 'mention' ? '🔔' : <DinoLogo style={{width:26,height:26,objectFit:'contain',verticalAlign:'middle'}} />}
           </div>
 
           {/* Text */}

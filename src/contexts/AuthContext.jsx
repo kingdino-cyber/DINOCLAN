@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -54,7 +54,7 @@ export function AuthProvider({ children }) {
 
   async function login(email, password) {
     const cred = await signInWithEmailAndPassword(auth, email, password)
-    updateDoc(doc(db, 'users', cred.user.uid), { status: 'online' })
+    updateDoc(doc(db, 'users', cred.user.uid), { status: 'online', invisible: false })
       .catch(err => console.warn('Firestore status update failed:', err.code))
     return cred
   }
@@ -66,14 +66,30 @@ export function AuthProvider({ children }) {
     return signOut(auth)
   }
 
-  // Mark user offline when they close/leave the tab
+  // Latest status, readable from event handlers without re-subscribing them
+  const statusRef = useRef(null)
+  const autoIdleRef = useRef(false)
+  useEffect(() => { statusRef.current = myProfile?.status }, [myProfile])
+
+  // Closing the tab/browser => offline. Minimizing / switching away => idle (only if they were
+  // online, so a manually chosen Do Not Disturb / Invisible is left alone), and back to online on return.
   useEffect(() => {
     if (!currentUser) return
     const userRef = doc(db, 'users', currentUser.uid)
-    const goOffline = () => updateDoc(userRef, { status: 'offline' }).catch(() => {})
-    const goOnline  = () => updateDoc(userRef, { status: 'online'  }).catch(() => {})
+    const setStatus = status => updateDoc(userRef, { status }).catch(() => {})
+    const goOffline = () => setStatus('offline')
+    const handleVisibility = () => {
+      if (document.hidden) {
+        if (statusRef.current === 'online') {
+          autoIdleRef.current = true
+          setStatus('idle')
+        }
+      } else if (autoIdleRef.current) {
+        autoIdleRef.current = false
+        setStatus('online')
+      }
+    }
     window.addEventListener('beforeunload', goOffline)
-    const handleVisibility = () => document.hidden ? goOffline() : goOnline()
     document.addEventListener('visibilitychange', handleVisibility)
     return () => {
       window.removeEventListener('beforeunload', goOffline)
@@ -94,9 +110,19 @@ export function AuthProvider({ children }) {
   // don't each mount their own listener and flash stale data on remount.
   useEffect(() => {
     if (!currentUser?.uid) { setMyProfile(null); return }
+    let firstSnapshot = true
     const unsub = onSnapshot(doc(db, 'users', currentUser.uid), snap => {
       if (snap.exists()) {
         const data = { uid: snap.id, ...snap.data() }
+        // Reopening the app while still signed in: closing the tab marked us offline,
+        // so come back online (unless the user deliberately chose Invisible).
+        if (firstSnapshot) {
+          firstSnapshot = false
+          if (data.status === 'offline' && !data.invisible) {
+            updateDoc(doc(db, 'users', currentUser.uid), { status: 'online' }).catch(() => {})
+            data.status = 'online'
+          }
+        }
         setMyProfile(data)
         // Apply Ray's improvements mode as a body attribute
         if (data.rayMode) {

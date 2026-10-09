@@ -315,8 +315,6 @@ function FileAttachment({ url, name, size, type }) {
               >Cancel</button>
               <button
                 onClick={() => { setShowWarning(false); doDownload() }}
-                onMouseEnter={e => e.currentTarget.style.filter = 'brightness(0.82)'}
-                onMouseLeave={e => e.currentTarget.style.filter = ''}
                 style={{
                   flex: 1, padding: '10px 0', borderRadius: 10, border: 'none',
                   background: 'var(--danger)', color: '#fff', fontWeight: 700,

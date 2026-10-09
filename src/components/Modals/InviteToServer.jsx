@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
+import DinoLogo from '../DinoLogo'
 
 export default function InviteToServer({ serverId, serverName, kind = 'server', onClose }) {
   const { currentUser } = useAuth()
@@ -42,7 +43,7 @@ export default function InviteToServer({ serverId, serverName, kind = 'server', 
         <h2>Invite to {serverName} {kind === 'group' ? '👥' : '🏠'}</h2>
         {status === 'sent' ? (
           <div style={{ textAlign: 'center', padding: '16px 0' }}>
-            <div style={{ fontSize: 36 }}>🦕</div>
+            <DinoLogo style={{ width: 44, height: 44, objectFit: 'contain' }} />
             <p style={{ color: 'var(--success)', marginTop: 8 }}>Invite sent!</p>
             <button className="btn-confirm" style={{ marginTop: 16 }} onClick={onClose}>Close</button>
           </div>

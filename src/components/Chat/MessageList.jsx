@@ -6,6 +6,7 @@ import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import { playMessageSound } from '../../utils/sounds'
 import Message from './Message'
+import DinoLogo from '../DinoLogo'
 
 export default function MessageList({ serverId, channelId, channelName, onReply, jumpToMessageId, onJumpHandled }) {
   const { currentUser } = useAuth()
@@ -106,7 +107,7 @@ export default function MessageList({ serverId, channelId, channelName, onReply,
     return (
       <div className="messages-list" ref={containerRef} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', flex: 1 }}>
         <div className="welcome-banner">
-          <div className="welcome-icon">🦕</div>
+          <div className="welcome-icon"><DinoLogo style={{width:44,height:44,objectFit:'contain'}} /></div>
           <h2>Welcome to #{channelName}!</h2>
           <p>This is the start of #{channelName}. The dinos are ready to chat! 🦖</p>
         </div>

@@ -149,7 +149,7 @@ export default function Settings({ onClose }) {
   }
 
   async function handleStatus(statusId) {
-    await updateDoc(doc(db, 'users', currentUser.uid), { status: statusId })
+    await updateDoc(doc(db, 'users', currentUser.uid), { status: statusId, invisible: statusId === 'offline' })
   }
 
   // ── Security handlers ───────────────────────────────────────────────────────

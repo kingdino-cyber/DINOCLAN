@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import DinoLogo from './DinoLogo'
 
 const COLORS = [
   '#4caf50','#81c784','#ffeb3b','#ff5252','#ff9800',
@@ -121,9 +122,7 @@ export default function BirthdayEffect({ onDone }) {
           boxShadow:'0 12px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(76,175,80,0.15)',
           minWidth:280,
         }}>
-          <img
-            src="/dinoclan-logo.png"
-            alt="DINOCLAN"
+          <DinoLogo
             style={{width:90,height:90,objectFit:'contain',marginBottom:12,
               filter:'drop-shadow(0 4px 16px rgba(76,175,80,0.5))'}}
           />

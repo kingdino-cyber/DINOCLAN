@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import DinoLogo from '../DinoLogo'
 
 const FEATURES = [
   {
@@ -337,7 +338,7 @@ export default function LandingPage() {
       {/* NAV */}
       <nav className="lp-nav">
         <a href="/" className="lp-nav-brand">
-          <img src="/dinoclan-logo.png" alt="DINOCLAN" />
+          <DinoLogo alt="DINOCLAN" />
           DINOCLAN
         </a>
         <div className="lp-nav-links">
@@ -349,7 +350,7 @@ export default function LandingPage() {
       {/* HERO */}
       <section className="lp-hero">
         <div className="lp-logo-wrap">
-          <img src="/dinoclan-logo.png" alt="DINOCLAN logo" className="lp-logo" />
+          <DinoLogo alt="DINOCLAN logo" className="lp-logo" />
         </div>
         <h1>Chat with your Clan</h1>
         <p>
@@ -368,7 +369,7 @@ export default function LandingPage() {
           <span className="lp-stat-label">Free forever</span>
         </div>
         <div className="lp-stat">
-          <span className="lp-stat-num">🦕</span>
+          <DinoLogo style={{width:34,height:34,objectFit:'contain'}} />
           <span className="lp-stat-label">Dino-powered</span>
         </div>
         <div className="lp-stat">
@@ -439,7 +440,7 @@ export default function LandingPage() {
       {/* FOOTER */}
       <footer className="lp-footer">
         <div className="lp-footer-brand">
-          <img src="/dinoclan-logo.png" alt="" />
+          <DinoLogo alt="" />
           DINOCLAN © 2026
         </div>
         <div className="lp-footer-links">
