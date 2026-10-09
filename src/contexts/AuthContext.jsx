@@ -12,6 +12,8 @@ import {
 } from 'firebase/auth'
 import { doc, setDoc, serverTimestamp, updateDoc, onSnapshot } from 'firebase/firestore'
 import { auth, db } from '../firebase'
+import { HEARTBEAT_MS } from '../utils/presence'
+import { keepaliveSetOffline } from '../utils/keepalive'
 
 const AuthContext = createContext(null)
 
@@ -54,7 +56,7 @@ export function AuthProvider({ children }) {
 
   async function login(email, password) {
     const cred = await signInWithEmailAndPassword(auth, email, password)
-    updateDoc(doc(db, 'users', cred.user.uid), { status: 'online', invisible: false })
+    updateDoc(doc(db, 'users', cred.user.uid), { status: 'online', invisible: false, lastSeen: serverTimestamp() })
       .catch(err => console.warn('Firestore status update failed:', err.code))
     return cred
   }
@@ -77,25 +79,52 @@ export function AuthProvider({ children }) {
     if (!currentUser) return
     const userRef = doc(db, 'users', currentUser.uid)
     const setStatus = status => updateDoc(userRef, { status }).catch(() => {})
-    const goOffline = () => setStatus('offline')
+    const beat = () => {
+      // Invisible/offline users don't send heartbeats (they already show offline)
+      if (statusRef.current && statusRef.current !== 'offline') {
+        updateDoc(userRef, { lastSeen: serverTimestamp() }).catch(() => {})
+      }
+    }
+    // The SDK's own write is cancelled when a tab closes, so also send a keepalive request
+    const goOffline = () => {
+      setStatus('offline')
+      keepaliveSetOffline(currentUser.uid)
+    }
     const handleVisibility = () => {
       if (document.hidden) {
         if (statusRef.current === 'online') {
           autoIdleRef.current = true
           setStatus('idle')
         }
-      } else if (autoIdleRef.current) {
-        autoIdleRef.current = false
-        setStatus('online')
+      } else {
+        beat()
+        if (autoIdleRef.current) {
+          autoIdleRef.current = false
+          setStatus('online')
+        }
       }
     }
+    window.addEventListener('pagehide', goOffline)
     window.addEventListener('beforeunload', goOffline)
     document.addEventListener('visibilitychange', handleVisibility)
+    const timer = setInterval(beat, HEARTBEAT_MS)
     return () => {
+      clearInterval(timer)
+      window.removeEventListener('pagehide', goOffline)
       window.removeEventListener('beforeunload', goOffline)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
   }, [currentUser])
+
+  // Send the first heartbeat as soon as our profile loads, so we show online straight away
+  const firstBeatSentRef = useRef(false)
+  useEffect(() => {
+    if (!currentUser) { firstBeatSentRef.current = false; return }
+    if (myProfile && !firstBeatSentRef.current && myProfile.status && myProfile.status !== 'offline') {
+      firstBeatSentRef.current = true
+      updateDoc(doc(db, 'users', currentUser.uid), { lastSeen: serverTimestamp() }).catch(() => {})
+    }
+  }, [currentUser, myProfile])
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, user => {
@@ -119,7 +148,7 @@ export function AuthProvider({ children }) {
         if (firstSnapshot) {
           firstSnapshot = false
           if (data.status === 'offline' && !data.invisible) {
-            updateDoc(doc(db, 'users', currentUser.uid), { status: 'online' }).catch(() => {})
+            updateDoc(doc(db, 'users', currentUser.uid), { status: 'online', lastSeen: serverTimestamp() }).catch(() => {})
             data.status = 'online'
           }
         }

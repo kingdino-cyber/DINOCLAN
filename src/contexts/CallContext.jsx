@@ -6,6 +6,7 @@ import {
 import { db } from '../firebase'
 import { useAuth } from './AuthContext'
 import { playCallRing, playCallEnd, playCallJoin } from '../utils/sounds'
+import { keepaliveLeaveServerCall, keepaliveEndCall } from '../utils/keepalive'
 
 const CallContext = createContext(null)
 
@@ -36,6 +37,28 @@ export function CallProvider({ children }) {
   const callDocUnsubRef      = useRef(null)
   const stopRingRef          = useRef(null)
   const processedSignalsRef  = useRef(new Set())   // tracks signal IDs already handled
+
+  // ── Closing the tab while in a call: leave it (normal SDK writes are cancelled on unload) ──
+  const activeCallRef = useRef(null)
+  useEffect(() => { activeCallRef.current = activeCall }, [activeCall])
+  useEffect(() => {
+    if (!currentUser?.uid) return
+    const leaveOnClose = () => {
+      const callId = activeCallIdRef.current
+      if (!callId) return
+      if (activeCallRef.current?.type === 'server') {
+        keepaliveLeaveServerCall(callId, { uid: currentUser.uid, name: currentUser.displayName || currentUser.email })
+      } else {
+        keepaliveEndCall(callId)
+      }
+    }
+    window.addEventListener('pagehide', leaveOnClose)
+    window.addEventListener('beforeunload', leaveOnClose)
+    return () => {
+      window.removeEventListener('pagehide', leaveOnClose)
+      window.removeEventListener('beforeunload', leaveOnClose)
+    }
+  }, [currentUser])
 
   // ── Listen for incoming DM calls ──────────────────────────────────────────
   useEffect(() => {

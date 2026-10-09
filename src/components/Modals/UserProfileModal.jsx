@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useProfile } from '../../contexts/ProfileContext'
 import { getGlobalRank, GLOBAL_RANK_TAGS } from '../../utils/admin'
 import Avatar from '../Chat/Avatar'
+import { effectiveStatus } from '../../utils/presence'
 
 function FriendChip({ uid }) {
   const [name, setName] = useState('…')
@@ -82,7 +83,8 @@ export default function UserProfileModal({ onStartDM }) {
 
   const isSelf    = profileUid === currentUser?.uid
   const friends   = user?.friends || []
-  const isOnline  = user?.status === 'online'
+  const shownStatus = effectiveStatus(user)
+  const isOnline  = shownStatus === 'online'
   const globalRank = user ? getGlobalRank(user) : 'user'
   const rankTag   = globalRank !== 'user' ? GLOBAL_RANK_TAGS[globalRank] : null
 
@@ -169,7 +171,7 @@ export default function UserProfileModal({ onStartDM }) {
               )}
             </div>
             <div style={{ fontSize: 12, fontWeight: 700, color: isOnline ? 'var(--online)' : 'var(--offline)', marginBottom: 14, textTransform: 'capitalize' }}>
-              ● {user.status || 'offline'}
+              ● {shownStatus}
             </div>
 
             {/* About Me section */}

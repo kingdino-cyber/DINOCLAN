@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext'
 import Avatar from './Chat/Avatar'
 import DinoDecorations from './DinoDecorations'
 import DinoLogo from './DinoLogo'
+import { effectiveStatus } from '../utils/presence'
 
 function FriendChip({ uid }) {
   const [name, setName] = useState('...')
@@ -46,7 +47,8 @@ export default function ProfilePage() {
 
   const isSelf = uid === currentUser?.uid
   const friends = user?.friends || []
-  const statusColour = user?.status === 'online' ? 'var(--online)' : 'var(--offline)'
+  const shownStatus = effectiveStatus(user)
+  const statusColour = shownStatus === 'online' ? 'var(--online)' : 'var(--offline)'
 
   return (
     <div style={{
@@ -135,7 +137,7 @@ export default function ProfilePage() {
                 )}
               </div>
               <div style={{ fontSize: 13, color: statusColour, fontWeight: 700, marginBottom: 24, textTransform: 'capitalize' }}>
-                ● {user.status || 'offline'}
+                ● {shownStatus}
               </div>
 
               {/* Stat cards */}

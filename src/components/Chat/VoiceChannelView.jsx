@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore'
+import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, arrayRemove } from 'firebase/firestore'
+import { isStale } from '../../utils/presence'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCall } from '../../contexts/CallContext'
@@ -132,6 +133,7 @@ export default function VoiceChannelView({ server, channel }) {
   } = useCall()
 
   const [callParticipants, setCallParticipants] = useState([])
+  const [callDocId, setCallDocId] = useState(null)
 
   useEffect(() => {
     if (!channel?.id) return
@@ -141,10 +143,37 @@ export default function VoiceChannelView({ server, channel }) {
       where('status',    '==', 'active'),
     )
     return onSnapshot(q, snap => {
-      if (snap.empty) { setCallParticipants([]); return }
+      if (snap.empty) { setCallParticipants([]); setCallDocId(null); return }
       setCallParticipants(snap.docs[0].data().participants || [])
+      setCallDocId(snap.docs[0].id)
     })
   }, [channel?.id])
+
+  // Remove people who left without cleanly leaving (closed the tab, crashed, lost connection):
+  // their heartbeat has stopped, so drop them from the call.
+  useEffect(() => {
+    if (!callDocId || callParticipants.length === 0) return
+    let cancelled = false
+    async function sweep() {
+      for (const p of callParticipants) {
+        if (cancelled) return
+        if (p.uid === currentUser?.uid) continue
+        try {
+          const snap = await getDoc(doc(db, 'users', p.uid))
+          if (!snap.exists() || isStale(snap.data())) {
+            await updateDoc(doc(db, 'calls', callDocId), { participants: arrayRemove(p) })
+            const fresh = await getDoc(doc(db, 'calls', callDocId))
+            if (fresh.exists() && (fresh.data().participants || []).length === 0) {
+              await updateDoc(doc(db, 'calls', callDocId), { status: 'ended' })
+            }
+          }
+        } catch (_) {}
+      }
+    }
+    sweep()
+    const t = setInterval(sweep, 30000)
+    return () => { cancelled = true; clearInterval(t) }
+  }, [callDocId, callParticipants.map(p => p.uid).join(','), currentUser?.uid]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const isInCall       = activeCall?.channelId === channel?.id
   const streamingUids  = Object.keys(remoteStreams)

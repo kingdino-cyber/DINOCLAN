@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { collection, getDocs, getDoc, doc, addDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
+import { effectiveStatus } from '../../utils/presence'
 
 function compressImage(file, maxPx = 900, quality = 0.72) {
   return new Promise(resolve => {
@@ -74,7 +75,7 @@ export default function ReportForm({ onClose }) {
       }
 
       const statusChecks = await Promise.all(monitors.map(m => getDoc(doc(db, 'users', m.uid))))
-      const onlineMonitors = monitors.filter((m, i) => statusChecks[i].data()?.status === 'online')
+      const onlineMonitors = monitors.filter((m, i) => effectiveStatus(statusChecks[i].data()) === 'online')
       const pool = onlineMonitors.length > 0 ? onlineMonitors : monitors
       const chosen = pool[Math.floor(Math.random() * pool.length)]
 

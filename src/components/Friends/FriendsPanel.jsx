@@ -10,6 +10,7 @@ import { isOperator, getGlobalRank, GLOBAL_RANK_TAGS } from '../../utils/admin'
 import { useMonitor } from '../../contexts/MonitorContext'
 import Avatar from '../Chat/Avatar'
 import DinoLogo from '../DinoLogo'
+import { effectiveStatus } from '../../utils/presence'
 
 /* ── Helpers ── */
 
@@ -62,7 +63,7 @@ function FriendRow({ uid, onStartDM, onRemove }) {
             {user.displayName}
           </div>
           <div style={{ color: 'var(--text-muted)', fontSize: 12, textTransform: 'capitalize' }}>
-            {user.status || 'offline'}
+            {effectiveStatus(user)}
           </div>
         </div>
         <span style={{ fontSize: 18, opacity: 0.4, flexShrink: 0 }}>💬</span>
@@ -80,7 +81,8 @@ function FriendRow({ uid, onStartDM, onRemove }) {
 /* ── Stats card shown after searching ── */
 function StatsCard({ user, onStartDM, currentUser }) {
   const friends = user.friends || []
-  const isOnline = user.status === 'online'
+  const shownStatus = effectiveStatus(user)
+  const isOnline = shownStatus === 'online'
   const isSelf = user.uid === currentUser?.uid
 
   return (
@@ -120,7 +122,7 @@ function StatsCard({ user, onStartDM, currentUser }) {
           )}
         </div>
         <div style={{ fontSize: 12, fontWeight: 700, color: isOnline ? 'var(--online)' : 'var(--offline)', marginBottom: 14, textTransform: 'capitalize' }}>
-          ● {user.status || 'offline'}
+          ● {shownStatus}
         </div>
 
         {/* Stat boxes */}

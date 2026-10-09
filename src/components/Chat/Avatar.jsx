@@ -1,3 +1,5 @@
+import { effectiveStatus } from '../../utils/presence'
+
 export default function Avatar({ user, size = 32, showStatus = false }) {
   const initials = (user?.displayName || user?.email || '?')
     .split(' ')
@@ -25,7 +27,7 @@ export default function Avatar({ user, size = 32, showStatus = false }) {
           : initials
       }
       {showStatus && (
-        <span className={`status-dot ${user?.status || 'offline'}`} />
+        <span className={`status-dot ${effectiveStatus(user)}`} />
       )}
     </div>
   )

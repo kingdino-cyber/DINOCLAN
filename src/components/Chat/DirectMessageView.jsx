@@ -12,6 +12,7 @@ import { useCall } from '../../contexts/CallContext'
 import { playMessageSound } from '../../utils/sounds'
 import Avatar from './Avatar'
 import DinoLogo from '../DinoLogo'
+import { effectiveStatus } from '../../utils/presence'
 import { format, isToday, isYesterday } from 'date-fns'
 
 const EMOJI_CATEGORIES = [
@@ -361,7 +362,7 @@ export default function DirectMessageView({ otherUid, onClose }) {
         <button className="dm-back-btn" onClick={onClose} title="Back">←</button>
         {otherUser && <Avatar user={otherUser} size={32} showStatus />}
         <span className="dm-header-name">{otherUser?.displayName || '...'}</span>
-        <span className="dm-header-status">{otherUser?.status || 'offline'}</span>
+        <span className="dm-header-status">{effectiveStatus(otherUser)}</span>
         <div style={{ flex: 1 }} />
         <button
           className="dm-call-btn"
