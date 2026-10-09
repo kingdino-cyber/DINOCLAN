@@ -154,7 +154,7 @@ function MemberRow({ uid, serverId, server, myServerRank, myGlobalRank, isViewin
             className={`kick-btn ${isEditor ? 'confirm' : ''}`}
             onClick={toggleEditor}
             title={isEditor ? 'Revoke posting access' : 'Grant posting access'}
-            style={{ fontSize: 13, opacity: 0.8 }}
+            style={{ fontSize: 13 }}
           >
             {isEditor ? '✏️' : '🔒'}
           </button>
@@ -221,11 +221,7 @@ export default function MembersSidebar({ serverId, server, memberIds, onStartDM 
           ⚡ {GLOBAL_RANK_TAGS[myGlobalRank]?.label}
         </div>
       )}
-      {isViewingServer && (
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '2px 8px 6px' }}>
-          {server?.type === 'viewing' ? '👁️ Viewing server' : '👁️ Has viewing-only channels. Click 🔒 next to a member to let them post in them (✏️ = can post)'}
-        </div>
-      )}
+      {server?.type === 'viewing' && <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '2px 8px 6px' }}>👁️ Viewing server</div>}
       {memberIds.map(uid => (
         <MemberRow
           key={uid}
