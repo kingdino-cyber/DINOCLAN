@@ -19,6 +19,7 @@ import Settings from '../Modals/Settings'
 import LeaveIcon from '../LeaveIcon'
 import DinoLogo from '../DinoLogo'
 import DinoDecorations from '../DinoDecorations'
+import { OPEN_CHANNEL_EVENT } from '../../utils/mentions'
 
 function getInitials(name = '') {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
@@ -208,6 +209,24 @@ export default function MobileLayout() {
   useEffect(() => {
     if (showMonitorPanel) setTab('monitor')
   }, [showMonitorPanel])
+
+  // Clicking a #channel mention in a message jumps to that channel (server or group)
+  useEffect(() => {
+    const onOpen = e => {
+      const { serverId, channelId } = e.detail || {}
+      if (!serverId || !channelId) return
+      if (activeGroup?.id === serverId) {
+        setActiveGroupChannelId(channelId)
+        setGroupView('chat')
+      } else if (activeServerId === serverId) {
+        setActiveChannelId(channelId)
+        setServerView('chat')
+        setTab('servers')
+      }
+    }
+    window.addEventListener(OPEN_CHANNEL_EVENT, onOpen)
+    return () => window.removeEventListener(OPEN_CHANNEL_EVENT, onOpen)
+  }, [activeGroup, activeServerId])
 
   function handleTab(t) {
     setTab(t)

@@ -20,6 +20,7 @@ import HelpButton from '../Monitor/HelpButton'
 import MonitorPanel from '../Monitor/MonitorPanel'
 import MonitorNotification from '../Monitor/MonitorNotification'
 import { useMonitor } from '../../contexts/MonitorContext'
+import { OPEN_CHANNEL_EVENT } from '../../utils/mentions'
 
 export default function MainLayout() {
   const { currentUser } = useAuth()
@@ -221,6 +222,16 @@ const location = useLocation()
     setActiveDmUid(null)
     if (serverId && channelId) navigate(`/app/server/${serverId}/${channelId}`)
   }
+
+  // Clicking a #channel mention in a message jumps to that channel
+  useEffect(() => {
+    const onOpen = e => {
+      const { serverId, channelId } = e.detail || {}
+      if (serverId && channelId) handleNavigateToServer(serverId, channelId)
+    }
+    window.addEventListener(OPEN_CHANNEL_EVENT, onOpen)
+    return () => window.removeEventListener(OPEN_CHANNEL_EVENT, onOpen)
+  }, [navigate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <ProfileProvider>

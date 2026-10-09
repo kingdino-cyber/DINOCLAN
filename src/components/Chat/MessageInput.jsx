@@ -7,6 +7,7 @@ import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage
 import { db, storage } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import { isOperator, getServerRank, getGlobalRank, countSwears } from '../../utils/admin'
+import { stripMentionTokens } from '../../utils/mentions'
 
 const EMOJI_CATEGORIES = [
   {
@@ -112,6 +113,12 @@ export default function MessageInput({ serverId, channelId, channelName, server,
   const [mentionQuery, setMentionQuery] = useState(null)  // null = closed
   const [mentionUsers, setMentionUsers] = useState([])
   const [mentionIndex, setMentionIndex] = useState(0)
+
+  // #channel mention state
+  const [channelQuery, setChannelQuery] = useState(null)  // null = closed
+  const [channelHits, setChannelHits]   = useState([])
+  const [channelIndex, setChannelIndex] = useState(0)
+  const channelCacheRef = useRef(null)
 
   // slash command menu
   const [slashCmds,  setSlashCmds]  = useState([])
@@ -247,7 +254,7 @@ export default function MessageInput({ serverId, channelId, channelName, server,
         messageId:   replyTo.id,
         uid:         replyTo.uid,
         displayName: replyTo.displayName || 'Unknown',
-        content:     replyTo.content ? replyTo.content.slice(0, 150) : '',
+        content:     replyTo.content ? stripMentionTokens(replyTo.content).slice(0, 150) : '',
         imageURL:    !!replyTo.imageURL,
         type:        replyTo.type || null,
       } : null
@@ -307,7 +314,35 @@ export default function MessageInput({ serverId, channelId, channelName, server,
   }
 
   // Invalidate member cache when switching servers
-  useEffect(() => { memberCacheRef.current = null }, [serverId])
+  useEffect(() => { memberCacheRef.current = null; channelCacheRef.current = null }, [serverId])
+
+  // Lazy-load + cache this server's channels for #channel mentions
+  async function fetchMentionChannels() {
+    if (channelCacheRef.current) return channelCacheRef.current
+    const snap = await getDocs(collection(db, 'servers', serverId, 'channels'))
+    const list = snap.docs
+      .map(d => ({ id: d.id, name: d.data().name || d.id, type: d.data().type === 'voice' ? 'voice' : 'text', position: d.data().position ?? 0 }))
+      .sort((a, b) => (a.type === b.type ? 0 : a.type === 'text' ? -1 : 1) || a.position - b.position || a.name.localeCompare(b.name))
+    channelCacheRef.current = list
+    return list
+  }
+
+  function closeChannelMenu() { setChannelQuery(null); setChannelHits([]) }
+
+  function handleChannelSelect(ch) {
+    const el = textareaRef.current
+    if (!el) return
+    const cursor = el.selectionStart
+    const newBefore = text.slice(0, cursor).replace(/(^|\s)#([\w-]*)$/, (_, lead) => `${lead}#[${ch.id}:${ch.name}] `)
+    const next = newBefore + text.slice(cursor)
+    setText(next)
+    closeChannelMenu()
+    setTimeout(() => {
+      el.focus()
+      el.setSelectionRange(newBefore.length, newBefore.length)
+      autoResize()
+    }, 0)
+  }
 
   // Lazy-load + cache server members for @mention
   async function fetchMentionMembers() {
@@ -764,7 +799,7 @@ export default function MessageInput({ serverId, channelId, channelName, server,
         messageId:   replyToSend.id,
         uid:         replyToSend.uid,
         displayName: replyToSend.displayName || 'Unknown',
-        content:     replyToSend.content ? replyToSend.content.slice(0, 150) : '',
+        content:     replyToSend.content ? stripMentionTokens(replyToSend.content).slice(0, 150) : '',
         imageURL:    !!replyToSend.imageURL,
         type:        replyToSend.type || null,
       } : null
@@ -799,7 +834,7 @@ export default function MessageInput({ serverId, channelId, channelName, server,
 
       // Notify other members (fire-and-forget)
       const preview = content
-        ? content.slice(0, 80)
+        ? stripMentionTokens(content).slice(0, 80)
         : imageToSend
           ? '📷 Image'
           : `📎 ${fileToSend?.name}`
@@ -807,7 +842,7 @@ export default function MessageInput({ serverId, channelId, channelName, server,
 
       // Notify mentioned users
       if (content) {
-        const mentionRe = /@\[([^:\]]+):([^\]]+)\]/g
+        const mentionRe = /@\[([^:\]]+):([^\]]+)\]/g // people only; #[channel] tokens deliberately don't notify
         let mMatch
         const notified = new Set()
         while ((mMatch = mentionRe.exec(content)) !== null) {
@@ -822,7 +857,7 @@ export default function MessageInput({ serverId, channelId, channelName, server,
               channelId,
               serverName:  server?.name   || 'Server',
               channelName: channelName    || 'channel',
-              preview:     content.replace(/@\[([^:\]]+):([^\]]+)\]/g, '@$2').slice(0, 80),
+              preview:     stripMentionTokens(content).slice(0, 80),
               createdAt:   serverTimestamp(),
               read:        false,
             }).catch(() => {})
@@ -988,6 +1023,13 @@ export default function MessageInput({ serverId, channelId, channelName, server,
       if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); runSlashCommand(slashCmds[slashIndex].cmd); return }
       if (e.key === 'Escape')    { setShowSlash(false); return }
     }
+    // #channel navigation
+    if (channelQuery !== null && channelHits.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setChannelIndex(i => Math.min(i + 1, channelHits.length - 1)); return }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); setChannelIndex(i => Math.max(i - 1, 0)); return }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); handleChannelSelect(channelHits[channelIndex]); return }
+      if (e.key === 'Escape')    { closeChannelMenu(); return }
+    }
     // @mention navigation
     if (mentionQuery !== null && mentionUsers.length > 0) {
       if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIndex(i => Math.min(i + 1, mentionUsers.length - 1)); return }
@@ -1069,7 +1111,7 @@ export default function MessageInput({ serverId, channelId, channelName, server,
             <span className="reply-preview-label">↩️ Replying to <strong>{replyTo.displayName}</strong></span>
             <span className="reply-preview-text">
               {replyTo.content
-                ? replyTo.content.slice(0, 80)
+                ? stripMentionTokens(replyTo.content).slice(0, 80)
                 : replyTo.imageURL ? '📷 Image'
                 : replyTo.type === 'announce' ? '📣 Announcement'
                 : replyTo.type === 'countdown' ? '⏱️ Countdown'
@@ -1307,6 +1349,24 @@ export default function MessageInput({ serverId, channelId, channelName, server,
           </div>
         )}
 
+        {/* #channel dropdown */}
+        {channelQuery !== null && channelHits.length > 0 && (
+          <div className="mention-dropdown">
+            <div className="mention-dropdown-header">Channels — Tab or Enter to select</div>
+            {channelHits.map((ch, i) => (
+              <button
+                key={ch.id}
+                className={`mention-dropdown-item${i === channelIndex ? ' active' : ''}`}
+                onMouseDown={e => { e.preventDefault(); handleChannelSelect(ch) }}
+                onMouseEnter={() => setChannelIndex(i)}
+              >
+                <span style={{ color: 'var(--accent)', fontWeight: 700 }}>{ch.type === 'voice' ? '🔊' : '#'}</span>
+                <span>{ch.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* @mention dropdown */}
         {mentionQuery !== null && mentionUsers.length > 0 && (
           <div className="mention-dropdown">
@@ -1388,6 +1448,18 @@ export default function MessageInput({ serverId, channelId, channelName, server,
               } else {
                 setMentionQuery(null)
                 setMentionUsers([])
+              }
+              // Detect #channel before cursor (must start a word, so "page#1" or URLs don't trigger it)
+              const chMatch = val.slice(0, cursor).match(/(?:^|\s)#([\w-]*)$/)
+              if (chMatch && serverId) {
+                const q = chMatch[1].toLowerCase()
+                setChannelIndex(0)
+                fetchMentionChannels().then(all => {
+                  setChannelHits(all.filter(c => c.name.toLowerCase().includes(q)).slice(0, 8))
+                  setChannelQuery(q)
+                }).catch(() => closeChannelMenu())
+              } else {
+                closeChannelMenu()
               }
             }}
             onKeyDown={handleKey}

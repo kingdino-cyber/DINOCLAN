@@ -10,21 +10,37 @@ import Avatar from './Avatar'
 import ChessPuzzle from './ChessPuzzle'
 import ChessLive from './ChessLive'
 import UnoGame from './UnoGame'
+import { openChannel, stripMentionTokens } from '../../utils/mentions'
 
-function parseMentions(content, currentUid) {
-  if (!content || !content.includes('@[')) return content
+function parseMentions(content, currentUid, serverId) {
+  if (!content || (!content.includes('@[') && !content.includes('#['))) return content
   const parts = []
   let last = 0
-  const re = /@\[([^:\]]+):([^\]]+)\]/g
+  const re = /([@#])\[([^:\]]+):([^\]]+)\]/g
   let m
   while ((m = re.exec(content)) !== null) {
     if (m.index > last) parts.push(content.slice(last, m.index))
-    const isMe = m[1] === currentUid
-    parts.push(
-      <span key={m.index} className={`mention-chip${isMe ? ' mention-me' : ''}`}>
-        @{m[2]}
-      </span>
-    )
+    if (m[1] === '#') {
+      const channelId = m[2]
+      parts.push(
+        <button
+          key={m.index}
+          type="button"
+          className="channel-chip"
+          title={`Go to #${m[3]}`}
+          onClick={() => openChannel(serverId, channelId)}
+        >
+          #{m[3]}
+        </button>
+      )
+    } else {
+      const isMe = m[2] === currentUid
+      parts.push(
+        <span key={m.index} className={`mention-chip${isMe ? ' mention-me' : ''}`}>
+          @{m[3]}
+        </span>
+      )
+    }
     last = m.index + m[0].length
   }
   if (last < content.length) parts.push(content.slice(last))
@@ -586,7 +602,7 @@ function EditBox({ original, messageRef, onDone }) {
 function ReplyQuote({ replyTo, onJump }) {
   if (!replyTo) return null
   const preview = replyTo.content
-    ? replyTo.content.slice(0, 120)
+    ? stripMentionTokens(replyTo.content).slice(0, 120)
     : replyTo.imageURL ? '📷 Image'
     : replyTo.type === 'announce' ? '📣 Announcement'
     : replyTo.type === 'countdown' ? '⏱️ Countdown'
@@ -708,7 +724,7 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
       ) : isChess ? (
         <>
           {message.content && (
-            <p className="msg-content">{parseMentions(message.content, currentUser?.uid)}</p>
+            <p className="msg-content">{parseMentions(message.content, currentUser?.uid, serverId)}</p>
           )}
           <ChessPuzzle puzzle={message.chessPuzzle || {}} />
           <ReactionBar message={message} messageRef={messageRef} />
@@ -721,7 +737,7 @@ export default function Message({ message, isFirst, prevMessage, serverId, chann
         <>
           {message.content && !editing && (
             <p className="msg-content">
-              {parseMentions(message.content, currentUser?.uid)}
+              {parseMentions(message.content, currentUser?.uid, serverId)}
               {message.edited && <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 4 }}>(edited)</span>}
             </p>
           )}

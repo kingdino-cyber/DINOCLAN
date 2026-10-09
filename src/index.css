@@ -2939,6 +2939,18 @@ body, #root { background: transparent; }
   max-height: 240px;
   overflow-y: auto;
 }
+.channel-chip {
+  display: inline;
+  background: rgba(88, 101, 242, 0.22);
+  color: #aab4ff;
+  border: none;
+  border-radius: 4px;
+  padding: 0 4px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.channel-chip:hover { background: rgba(88, 101, 242, 0.4); }
 .mention-dropdown-header {
   padding: 6px 12px;
   font-size: 11px;
