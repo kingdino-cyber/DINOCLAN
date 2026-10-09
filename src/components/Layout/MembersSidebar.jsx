@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { doc, onSnapshot, updateDoc, arrayRemove, arrayUnion, deleteField } from 'firebase/firestore'
+import { doc, collection, onSnapshot, updateDoc, arrayRemove, arrayUnion, deleteField } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import {
@@ -154,7 +154,7 @@ function MemberRow({ uid, serverId, server, myServerRank, myGlobalRank, isViewin
             className={`kick-btn ${isEditor ? 'confirm' : ''}`}
             onClick={toggleEditor}
             title={isEditor ? 'Revoke posting access' : 'Grant posting access'}
-            style={{ fontSize: 13 }}
+            style={{ fontSize: 13, opacity: 0.8 }}
           >
             {isEditor ? '✏️' : '🔒'}
           </button>
@@ -199,9 +199,19 @@ export default function MembersSidebar({ serverId, server, memberIds, onStartDM 
     return unsub
   }, [currentUser?.uid])
 
+  // Viewing-only is set per channel now, so show the posting-access controls whenever any channel is viewing-only
+  const [hasViewingChannel, setHasViewingChannel] = useState(false)
+  useEffect(() => {
+    if (!serverId) { setHasViewingChannel(false); return }
+    const unsub = onSnapshot(collection(db, 'servers', serverId, 'channels'), snap => {
+      setHasViewingChannel(snap.docs.some(d => d.data().viewType === 'viewing'))
+    }, () => setHasViewingChannel(false))
+    return unsub
+  }, [serverId])
+
   const myServerRank = getServerRank(server, currentUser?.uid)
   const myGlobalRank = getGlobalRank(myUserData ? { ...myUserData, email: currentUser?.email } : { email: currentUser?.email })
-  const isViewingServer = server?.type === 'viewing'
+  const isViewingServer = server?.type === 'viewing' || hasViewingChannel
 
   return (
     <div className="members-sidebar">
@@ -211,7 +221,11 @@ export default function MembersSidebar({ serverId, server, memberIds, onStartDM 
           ⚡ {GLOBAL_RANK_TAGS[myGlobalRank]?.label}
         </div>
       )}
-      {isViewingServer && <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '2px 8px 6px' }}>👁️ Viewing server</div>}
+      {isViewingServer && (
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '2px 8px 6px' }}>
+          {server?.type === 'viewing' ? '👁️ Viewing server' : '👁️ Has viewing-only channels. Click 🔒 next to a member to let them post in them (✏️ = can post)'}
+        </div>
+      )}
       {memberIds.map(uid => (
         <MemberRow
           key={uid}
