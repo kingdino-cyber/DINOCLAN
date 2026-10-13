@@ -11,6 +11,7 @@ import ChessPuzzle from './ChessPuzzle'
 import ChessLive from './ChessLive'
 import UnoGame from './UnoGame'
 import { openChannel, stripMentionTokens } from '../../utils/mentions'
+import ReplyIcon from '../ReplyIcon'
 
 function parseMentions(content, currentUid, serverId) {
   if (!content || (!content.includes('@[') && !content.includes('#['))) return content
@@ -525,7 +526,7 @@ function MessageActions({ message, serverId, channelId, onEdit, onDelete, onRepl
       </div>
       {onReply && (
         <button className="msg-action-btn" onClick={() => onReply(message)} title="Reply">
-          ↩️
+          <ReplyIcon size={16} />
         </button>
       )}
       <button className="msg-action-btn" onClick={toggleImportant}

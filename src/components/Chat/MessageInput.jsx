@@ -8,6 +8,7 @@ import { db, storage } from '../../firebase'
 import { useAuth } from '../../contexts/AuthContext'
 import { isOperator, getServerRank, getGlobalRank, countSwears } from '../../utils/admin'
 import { stripMentionTokens } from '../../utils/mentions'
+import ReplyIcon from '../ReplyIcon'
 
 const EMOJI_CATEGORIES = [
   {
@@ -1108,7 +1109,7 @@ export default function MessageInput({ serverId, channelId, channelName, server,
       {replyTo && (
         <div className="reply-preview-bar">
           <div className="reply-preview-inner">
-            <span className="reply-preview-label">↩️ Replying to <strong>{replyTo.displayName}</strong></span>
+            <span className="reply-preview-label"><ReplyIcon size={14} style={{ marginRight: 5 }} />Replying to <strong>{replyTo.displayName}</strong></span>
             <span className="reply-preview-text">
               {replyTo.content
                 ? stripMentionTokens(replyTo.content).slice(0, 80)

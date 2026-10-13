@@ -5,9 +5,17 @@ button:not(:disabled),
 .lp-nav-login, .lp-nav-join, .lp-btn-primary, .lp-btn-secondary, .terms-back {
   transition: filter 0.15s;
 }
-button:not(:disabled):hover,
-.lp-nav-login:hover, .lp-nav-join:hover, .lp-btn-primary:hover, .lp-btn-secondary:hover, .terms-back:hover {
-  filter: brightness(0.88);
+/* Only on devices that really hover (on phones a tap would leave the button stuck dark) */
+@media (hover: hover) {
+  button:not(:disabled):hover,
+  .lp-nav-login:hover, .lp-nav-join:hover, .lp-btn-primary:hover, .lp-btn-secondary:hover, .terms-back:hover {
+    filter: brightness(0.88);
+  }
+}
+/* Plain-background mode (Apple / touch / mobile mode): blur effects over a full-screen layer are very slow there */
+html.dc-lite * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 button:not(:disabled):active,
 .lp-nav-login:active, .lp-nav-join:active, .lp-btn-primary:active, .lp-btn-secondary:active, .terms-back:active {
@@ -72,6 +80,7 @@ body, #root { background: transparent; }
 }
 
 .auth-box {
+  background: rgba(30, 42, 30, 0.88);
   background: color-mix(in srgb, var(--bg-primary) 88%, transparent);
   backdrop-filter: blur(6px);
   border-radius: 8px;
@@ -446,6 +455,7 @@ body, #root { background: transparent; }
 /* Channel sidebar */
 .channel-sidebar {
   width: 360px;
+  background: rgba(25, 36, 25, 0.35);
   background: color-mix(in srgb, var(--bg-secondary) 35%, transparent);
   display: flex;
   flex-direction: column;
@@ -952,6 +962,7 @@ body, #root { background: transparent; }
   background: none;
   border: none;
   cursor: pointer;
+  color: var(--header-primary);
   font-size: 14px;
   padding: 3px 5px;
   border-radius: 4px;
@@ -1639,6 +1650,28 @@ body, #root { background: transparent; }
   cursor: pointer;
 }
 .member-item:hover { background: var(--bg-hover); }
+.member-item { position: relative; }
+/* Hover buttons (rank / posting access / kick / ban) float over the end of the row so they never squeeze the name */
+.member-actions {
+  position: absolute;
+  right: 4px;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .12s;
+}
+.member-item:hover .member-actions,
+.member-actions:focus-within { opacity: 1; pointer-events: auto; }
+/* While hovered, the name shortens to leave room for the buttons instead of being covered */
+.member-item .member-main { box-sizing: border-box; transition: padding-right .12s; }
+.member-item:hover .member-main { padding-right: var(--actions-w, 0px); }
+.member-actions .kick-btn { font-size: 13px !important; padding: 2px 3px; }
+/* The rank badge steps aside on hover (only on rows that show buttons) so the name keeps room */
+.member-item:hover .member-main[data-has-actions] .rank-chip { display: none; }
 .member-item .member-name {
   font-size: 14px;
   color: var(--channel-default);
@@ -2010,7 +2043,8 @@ body, #root { background: transparent; }
 .discover-panel {
   flex: 1;
   min-width: 0;
-  background: var(--bg-secondary);
+  background: rgba(25, 36, 25, 0.3);
+  background: color-mix(in srgb, var(--bg-secondary) 30%, transparent);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -2195,6 +2229,7 @@ body, #root { background: transparent; }
   flex: 1;
   display: flex;
   flex-direction: column;
+  background: rgba(30, 42, 30, 0.3);
   background: color-mix(in srgb, var(--bg-primary) 30%, transparent);
   min-width: 0;
 }

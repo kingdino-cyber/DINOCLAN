@@ -291,24 +291,6 @@ export default function LandingPage() {
           .lp-about-inner { padding: 36px 24px; }
         }
 
-        /* ── CTA ── */
-        .lp-cta {
-          position: relative; z-index: 1;
-          text-align: center; padding: 100px 24px;
-          background: linear-gradient(160deg, rgba(76,175,80,0.12) 0%, rgba(56,142,60,0.06) 100%);
-          border-top: 1px solid rgba(76,175,80,0.15);
-          border-bottom: 1px solid rgba(76,175,80,0.15);
-        }
-        .lp-cta-badge {
-          display: inline-block; padding: 5px 14px; border-radius: 20px;
-          background: rgba(76,175,80,0.15); border: 1px solid rgba(76,175,80,0.3);
-          font-size: 12px; font-weight: 700; color: #66bb6a;
-          text-transform: uppercase; letter-spacing: 0.1em;
-          margin-bottom: 24px;
-        }
-        .lp-cta h2 { font-size: clamp(30px, 5vw, 52px); font-weight: 900; color: #fff; margin-bottom: 14px; letter-spacing: -1px; }
-        .lp-cta p  { font-size: 17px; color: #81c784; margin-bottom: 36px; }
-
         /* ── FOOTER ── */
         .lp-footer {
           position: relative; z-index: 1;
@@ -411,13 +393,16 @@ export default function LandingPage() {
           <p className="lp-about-label">Who we are</p>
           <h2>Built for communities, by a dino enthusiast</h2>
           <p>
-            DINOCLAN is a passion project — a free, fully-featured chat platform built from the ground up for tight-knit communities. Whether you're gaming with friends, running a study group, or just hanging out, DINOCLAN gives you everything you need: servers, channels, voice calls, direct messages, groups, and more.
+            Dinoclan is a passion project- it’s a free and fully functioning chat program. It’s the dream communication platform; you can create servers, make social connections, use voice calls- there are limitless possibilities. Whether you're gaming with friends or just hanging out, Dinoclan is here and built for any occasion.
           </p>
           <p>
-            Our mission is simple: provide another way to chat that works for everyone, at any age. We wanted a platform that's welcoming, safe, and genuinely fun to use — no matter who you are or how old you are. DINOCLAN is completely free — no subscriptions, no paywalls, no hidden fees. Our safety system is built in from day one, with trained monitors who keep things fair and a reporting system that actually works.
+            Our mission was simple- create a fully functioning chat program that’s free, easy to use and secure. We crafted Dinoclan, a dino-themed chat, a free and fully functional platform. After numerous months of decoding bugs, solving security issues and handling deployments, we presented Dinoclan. Security is key- Dinoclan uses trained monitors to keep things fair and under control. Dinoclan is completely safe- our privacy is top-tier. We genuinely wanted a masterpiece for everyone to enjoy.
           </p>
           <p>
-            Have a question, feedback, or just want to say hi? Reach out directly:
+            Begin today and start your Dinoclan journey here!
+          </p>
+          <p>
+            Have any questions? Reach out to us at
           </p>
           <a href="mailto:bohlehsaurus7@gmail.com" className="lp-about-contact">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -427,14 +412,6 @@ export default function LandingPage() {
             bohlehsaurus7@gmail.com
           </a>
         </div>
-      </section>
-
-      {/* CTA */}
-      <section className="lp-cta">
-        <div className="lp-cta-badge">100% Free · No account required to browse</div>
-        <h2>Ready to join the herd?</h2>
-        <p>Create your account in seconds. No credit card needed.</p>
-        <Link to="/register" className="lp-btn-primary">Create Free Account</Link>
       </section>
 
       {/* FOOTER */}

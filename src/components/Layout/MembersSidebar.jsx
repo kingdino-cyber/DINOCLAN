@@ -17,7 +17,7 @@ function RankChip({ rank, type = 'server' }) {
   const info = tags[rank]
   if (!info) return null
   return (
-    <span style={{
+    <span className="rank-chip" style={{
       fontSize: 9, fontWeight: 800, letterSpacing: '0.04em',
       color: info.color, background: info.bg,
       borderRadius: 3, padding: '1px 5px',
@@ -93,12 +93,21 @@ function MemberRow({ uid, serverId, server, myServerRank, myGlobalRank, isViewin
   const isEditor = server?.editors?.includes(uid)
   const isHost = server?.ownerId === currentUser?.uid || isOperator(currentUser)
 
+  // Rows with several badges may wrap; everyone else stays on one line so the row never changes height on hover
+  const badgeCount = (theirGlobalRank !== 'user' ? 1 : 0) + (theirServerRank !== 'member' ? 1 : 0)
+  const wrapTags = badgeCount >= 2 || isOwner
+
+  // How many hover buttons this row shows (so the name only makes room for them while hovered)
+  const showRankBtn = iManage && !isOwner
+  const showEditorBtn = isViewingServer && isHost && !isSelf && !isOwner
+  const actionCount = (showRankBtn ? 1 : 0) + (showEditorBtn ? 1 : 0) + (canKick ? 2 : 0)
+
   return (
     <div className="member-item" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 4 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
+      <div className="member-main" data-has-actions={actionCount > 0 ? '1' : undefined} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1, '--actions-w': actionCount ? `${actionCount * 24 + 6}px` : '0px' }}>
         <Avatar user={user} size={32} showStatus />
         <div style={{ minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: wrapTags ? 'wrap' : 'nowrap' }}>
             {/* Global rank chip */}
             {theirGlobalRank !== 'user' && <RankChip rank={theirGlobalRank} type="global" />}
             {/* Server rank chip */}
@@ -119,10 +128,10 @@ function MemberRow({ uid, serverId, server, myServerRank, myGlobalRank, isViewin
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 2, flexShrink: 0, position: 'relative' }}>
+      <div className="member-actions">
         {/* Rank management button (shown to anyone who can manage this person) */}
         {iManage && !isOwner && (
-          <div style={{ position: 'relative' }}>
+          <div>
             <button
               className="kick-btn"
               onClick={() => setShowRankMenu(m => !m)}

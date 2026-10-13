@@ -358,6 +358,7 @@ export default function MobileLayout() {
         .ml-header {
           display: flex; align-items: center; justify-content: space-between;
           padding: 0 10px; height: 52px; flex-shrink: 0;
+          background: rgba(17, 26, 17, 0.7);
           background: color-mix(in srgb, var(--bg-tertiary) 70%, transparent);
           backdrop-filter: blur(6px);
           border-bottom: 1px solid rgba(255,255,255,0.07);
@@ -374,7 +375,8 @@ export default function MobileLayout() {
         }
         .ml-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
         .ml-bottom-nav {
-          display: flex; background: color-mix(in srgb, var(--bg-tertiary) 70%, transparent);
+          display: flex; background: rgba(17, 26, 17, 0.7);
+          background: color-mix(in srgb, var(--bg-tertiary) 70%, transparent);
           backdrop-filter: blur(6px);
           border-top: 1px solid rgba(255,255,255,0.07);
           padding: 6px 4px; padding-bottom: max(10px, env(safe-area-inset-bottom));
@@ -417,7 +419,8 @@ export default function MobileLayout() {
         }
         .ml-server-row {
           display: flex; align-items: stretch; gap: 4px;
-          border-radius: 14px; background: color-mix(in srgb, var(--bg-secondary) 75%, transparent);
+          border-radius: 14px; background: rgba(25, 36, 25, 0.75);
+          background: color-mix(in srgb, var(--bg-secondary) 75%, transparent);
           backdrop-filter: blur(4px);
           overflow: hidden;
         }
@@ -491,6 +494,7 @@ export default function MobileLayout() {
         .ml-panel-full .channel-sidebar,
         .ml-panel-full .discover-panel,
         .ml-panel-full .monitor-panel {
+          background: rgba(30, 42, 30, 0.45) !important;
           background: color-mix(in srgb, var(--bg-primary) 45%, transparent) !important;
         }
         .ml-home-tab { background: rgba(14, 24, 14, 0.92); color: var(--text-normal); }

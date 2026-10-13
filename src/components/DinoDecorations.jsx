@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { shouldUseLiteBackground } from '../utils/device'
 
 const IMG = 'url(/dinoclan-background.jpg)'
 
@@ -70,8 +71,22 @@ export default function DinoDecorations() {
   const turbRef = useRef(null)
   const cloudTurbRef = useRef(null)
 
+  // Apple devices, touch devices and mobile mode get a plain still image: the animated
+  // SVG-filter scene makes Safari/iPhones crawl.
+  const [lite, setLite] = useState(() => shouldUseLiteBackground())
+  useEffect(() => {
+    const update = () => setLite(shouldUseLiteBackground())
+    window.addEventListener('mobileModeChanged', update)
+    return () => window.removeEventListener('mobileModeChanged', update)
+  }, [])
+  useEffect(() => {
+    document.documentElement.classList.toggle('dc-lite', lite)
+    return () => document.documentElement.classList.remove('dc-lite')
+  }, [lite])
+
   // Drive the water + cloud distortion from JS (SVG SMIL animation can silently stall in Chrome)
   useEffect(() => {
+    if (lite) return
     let raf, last = 0
     const start = performance.now()
     function tick(now) {
@@ -88,7 +103,23 @@ export default function DinoDecorations() {
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [])
+  }, [lite])
+
+  if (lite) {
+    return (
+      <div
+        className="dino-decorations"
+        style={{
+          position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: -1,
+          backgroundColor: '#0f1a0f',
+          backgroundImage: 'linear-gradient(rgba(10,22,10,0.55), rgba(10,22,10,0.55)), url(/dinoclan-background.jpg)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+        }}
+      />
+    )
+  }
 
   return (
     <div
